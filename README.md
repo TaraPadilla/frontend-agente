@@ -18,9 +18,10 @@ npm run dev
 
 Vite publica la interfaz en `http://localhost:5173`.
 
-En otra terminal, desde la raíz del repositorio, inicia la API:
+En otra terminal, inicia la API desde el repositorio hermano del backend:
 
 ```powershell
+cd ..\AgenteEmpresarial
 .\.venv\Scripts\python.exe -m uvicorn Agente.api.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 

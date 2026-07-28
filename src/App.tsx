@@ -1,9 +1,11 @@
-import { CheckCircle2, Server, XCircle } from 'lucide-react'
+import { CheckCircle2, XCircle } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
-import { ChatPanel, type ChatMessage } from './components/ChatPanel'
-import { DiagnosticsBar } from './components/DiagnosticsBar'
-import { Sidebar } from './components/Sidebar'
-import { SourcesPanel } from './components/SourcesPanel'
+import { ChatHeader } from './components/ChatHeader'
+import { ChatPanel } from './components/ChatPanel'
+import type { ChatMessageData } from './components/ChatMessage'
+import { Sidebar, type AppView } from './components/Sidebar'
+import { TechnicalPanel } from './components/TechnicalPanel'
+import { WorkspaceView } from './components/WorkspaceView'
 import { api, ApiError } from './services/api'
 import type {
   DocumentItem,
@@ -16,10 +18,14 @@ import type {
   Visibility,
 } from './types/api'
 
-const welcomeMessage: ChatMessage = {
-  id: 'welcome',
-  role: 'assistant',
-  content: '¡Hola! Soy el asistente documental de la empresa.\n\n¿En qué puedo ayudarte?',
+function createWelcomeMessage(): ChatMessageData {
+  return {
+    id: 'welcome',
+    role: 'assistant',
+    content:
+      '¡Hola! Soy el asistente documental de la empresa.\n\n¿En qué puedo ayudarte?',
+    timestamp: new Date().toISOString(),
+  }
 }
 
 type Notice = { tone: 'success' | 'error'; text: string } | null
@@ -32,6 +38,8 @@ function errorMessage(error: unknown) {
 
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [activeView, setActiveView] = useState<AppView>('chat')
+  const [technicalPanelOpen, setTechnicalPanelOpen] = useState(false)
   const [companies, setCompanies] = useState<string[]>([])
   const [company, setCompany] = useState('')
   const [profile, setProfile] = useState<Profile>('public')
@@ -51,13 +59,14 @@ function App() {
     Public: null,
     Private: null,
   })
-  const [messages, setMessages] = useState<ChatMessage[]>([welcomeMessage])
+  const [messages, setMessages] = useState<ChatMessageData[]>([
+    createWelcomeMessage(),
+  ])
   const [sources, setSources] = useState<Source[]>([])
-  const [showSources, setShowSources] = useState(true)
   const [lastQuery, setLastQuery] = useState<QueryResponse | null>(null)
 
   const resetConversation = useCallback(() => {
-    setMessages([welcomeMessage])
+    setMessages([createWelcomeMessage()])
     setSources([])
     setLastQuery(null)
   }, [])
@@ -91,7 +100,9 @@ function App() {
           api.settings(),
         ])
         if (!active) return
-        const availableCompanies = companyResponse.companies.map((item) => item.name)
+        const availableCompanies = companyResponse.companies.map(
+          (item) => item.name,
+        )
         const selectedCompany =
           companyResponse.active_company ||
           settingsResponse.active_company ||
@@ -150,7 +161,10 @@ function App() {
       setSettings(updated)
       setModelTest(null)
       resetConversation()
-      setNotice({ tone: 'success', text: `Modelo actualizado a ${updated.llm_model}.` })
+      setNotice({
+        tone: 'success',
+        text: `Modelo actualizado a ${updated.llm_model}.`,
+      })
     } catch (error) {
       setNotice({ tone: 'error', text: errorMessage(error) })
     } finally {
@@ -163,9 +177,7 @@ function App() {
     try {
       const result = await api.testModel()
       setModelTest(result)
-      if (!result.success) {
-        setNotice({ tone: 'error', text: result.response })
-      }
+      if (!result.success) setNotice({ tone: 'error', text: result.response })
     } catch (error) {
       setNotice({ tone: 'error', text: errorMessage(error) })
     } finally {
@@ -222,9 +234,7 @@ function App() {
     try {
       const response = await api.syncIndexes(company, visibility)
       await refreshLibraries(company)
-      if (settings?.reindex_pending) {
-        setSettings(await api.settings())
-      }
+      if (settings?.reindex_pending) setSettings(await api.settings())
       setNotice({
         tone: 'success',
         text: `Sincronización completada para ${response.results.length} índice${response.results.length === 1 ? '' : 's'}.`,
@@ -237,12 +247,15 @@ function App() {
   }
 
   async function submitQuestion(question: string) {
-    const userMessage: ChatMessage = {
-      id: `user-${crypto.randomUUID()}`,
-      role: 'user',
-      content: question,
-    }
-    setMessages((current) => [...current, userMessage])
+    setMessages((current) => [
+      ...current,
+      {
+        id: `user-${crypto.randomUUID()}`,
+        role: 'user',
+        content: question,
+        timestamp: new Date().toISOString(),
+      },
+    ])
     setBusyAction('query')
     try {
       const response = await api.query({
@@ -259,6 +272,7 @@ function App() {
           id: `assistant-${crypto.randomUUID()}`,
           role: 'assistant',
           content: response.answer.text,
+          timestamp: new Date().toISOString(),
         },
       ])
     } catch (error) {
@@ -270,6 +284,7 @@ function App() {
           id: `assistant-error-${crypto.randomUUID()}`,
           role: 'assistant',
           content: `No pude completar la consulta. ${text}`,
+          timestamp: new Date().toISOString(),
         },
       ])
     } finally {
@@ -290,97 +305,30 @@ function App() {
     )
   }
 
-  const currentFragments =
-    lastQuery?.diagnostics.retrieved_fragments ??
-    (profile === 'public'
-      ? indexStatus.Public?.fragment_count
-      : (indexStatus.Public?.fragment_count ?? 0) +
-        (indexStatus.Private?.fragment_count ?? 0)) ??
-    0
-
   return (
-    <div className="min-h-screen bg-[#030711] text-slate-100 lg:flex">
-      <Sidebar
-        busyAction={busyAction}
-        companies={companies}
-        company={company}
-        documents={documents}
-        indexStatus={indexStatus}
-        modelTest={modelTest}
-        onClose={() => setSidebarOpen((current) => !current)}
-        onCompanyChange={(value) => void changeCompany(value)}
-        onDelete={deleteDocument}
-        onProfileChange={changeProfile}
-        onSaveModel={saveModel}
-        onSync={syncIndexes}
-        onTestModel={testModel}
-        onUpload={uploadDocuments}
-        open={sidebarOpen}
-        profile={profile}
-        settings={settings}
-      />
+    <div className="min-h-dvh bg-[#020813] p-0 text-slate-100 lg:h-dvh lg:p-3">
+      <div className="app-frame mx-auto flex min-h-dvh max-w-[1780px] overflow-hidden border-slate-700/60 bg-[#07111f] lg:h-full lg:min-h-0 lg:rounded-2xl lg:border">
+        <Sidebar
+          activeView={activeView}
+          companies={companies}
+          company={company}
+          onClose={() => setSidebarOpen(false)}
+          onCompanyChange={(value) => void changeCompany(value)}
+          onNavigate={setActiveView}
+          onProfileChange={changeProfile}
+          onToggle={() => setSidebarOpen((current) => !current)}
+          open={sidebarOpen}
+          profile={profile}
+        />
 
-      <main className="min-w-0 flex-1 px-4 pb-5 pt-20 sm:px-6 lg:h-screen lg:overflow-hidden lg:px-7 lg:py-5">
-        <div className="mx-auto flex h-full max-w-[1600px] flex-col">
-          <header className="mb-4 flex items-center justify-between gap-4">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#7ea4cf]">
-                Empresa activa
-              </p>
-              <h2 className="mt-1 text-lg font-extrabold text-white">
-                {company || 'Sin empresa seleccionada'}
-              </h2>
-            </div>
-            <div
-              className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${
-                connected === true
-                  ? 'border-emerald-300/25 bg-emerald-300/10 text-emerald-200'
-                  : connected === null
-                    ? 'border-slate-400/25 bg-slate-400/10 text-slate-300'
-                  : 'border-rose-300/25 bg-rose-300/10 text-rose-200'
-              }`}
-            >
-              <Server className="size-3.5" />
-              {connected === true
-                ? 'Servicio conectado'
-                : connected === null
-                  ? 'Conectando…'
-                  : 'Servicio no disponible'}
-            </div>
-          </header>
-
-          <DiagnosticsBar
-            company={company}
-            elapsedSeconds={lastQuery?.diagnostics.elapsed_seconds ?? null}
-            embeddingModel={settings?.embedding_model ?? ''}
-            fragments={currentFragments}
-            model={lastQuery?.model ?? settings?.llm_model ?? ''}
-            profile={profile}
-          />
-
-          <div className="mb-3 mt-4 flex items-center justify-between gap-4">
-            <h2 className="text-base font-bold uppercase text-slate-400">
-              Conversación documental
-            </h2>
-            <label className="flex cursor-pointer items-center gap-3 text-sm font-semibold text-white">
-              <input
-                checked={showSources}
-                className="peer sr-only"
-                onChange={(event) => setShowSources(event.target.checked)}
-                type="checkbox"
-              />
-              <span className="relative h-6 w-12 rounded-full bg-slate-700 transition peer-checked:bg-cyan-300 after:absolute after:left-1 after:top-1 after:size-4 after:rounded-full after:bg-white after:transition peer-checked:after:translate-x-6" />
-              Mostrar fuentes
-            </label>
-          </div>
-
+        <main className="relative flex min-w-0 flex-1 flex-col">
           {notice && (
             <div
               aria-live="polite"
-              className={`mb-3 flex items-start gap-2 rounded-xl border px-4 py-3 text-sm ${
+              className={`fixed right-4 top-4 z-[60] flex max-w-md items-start gap-2 rounded-xl border px-4 py-3 text-sm shadow-2xl ${
                 notice.tone === 'success'
-                  ? 'border-emerald-300/30 bg-emerald-300/10 text-emerald-100'
-                  : 'border-rose-300/30 bg-rose-300/10 text-rose-100'
+                  ? 'border-emerald-300/30 bg-[#102a25] text-emerald-100'
+                  : 'border-rose-300/30 bg-[#2b1520] text-rose-100'
               }`}
             >
               {notice.tone === 'success' ? (
@@ -392,31 +340,56 @@ function App() {
             </div>
           )}
 
-          <div
-            className={`min-h-0 flex-1 gap-5 lg:grid ${
-              showSources ? 'lg:grid-cols-[minmax(0,1fr)_310px]' : 'lg:grid-cols-1'
-            }`}
-          >
-            {booting ? (
-              <div className="grid min-h-[430px] place-items-center rounded-2xl border border-cyan-300/15 bg-[#07111f] text-sm text-slate-400">
-                Cargando configuración del agente…
-              </div>
-            ) : (
-              <ChatPanel
-                loading={busyAction === 'query'}
-                messages={messages}
-                onFeedback={setFeedback}
-                onSubmit={submitQuestion}
+          {activeView === 'chat' ? (
+            <>
+              <ChatHeader
+                company={company}
+                connected={connected}
+                onNewConversation={resetConversation}
+                onOpenTechnicalPanel={() => setTechnicalPanelOpen(true)}
+                onProfileChange={changeProfile}
+                profile={profile}
               />
-            )}
-            {showSources && (
-              <div className="mt-5 min-h-0 lg:mt-0">
-                <SourcesPanel sources={sources} />
+              <div className="flex min-h-0 flex-1">
+                {booting ? (
+                  <div className="grid flex-1 place-items-center bg-[#ebe8e1] text-sm text-slate-500">
+                    Cargando configuración del agente…
+                  </div>
+                ) : (
+                  <ChatPanel
+                    loading={busyAction === 'query'}
+                    messages={messages}
+                    onFeedback={setFeedback}
+                    onSubmit={submitQuestion}
+                  />
+                )}
+                <TechnicalPanel
+                  onClose={() => setTechnicalPanelOpen(false)}
+                  open={technicalPanelOpen}
+                  query={lastQuery}
+                  settings={settings}
+                  sources={sources}
+                />
               </div>
-            )}
-          </div>
-        </div>
-      </main>
+            </>
+          ) : (
+            <WorkspaceView
+              busyAction={busyAction}
+              company={company}
+              documents={documents}
+              indexStatus={indexStatus}
+              modelTest={modelTest}
+              onDelete={deleteDocument}
+              onSaveModel={saveModel}
+              onSync={syncIndexes}
+              onTestModel={testModel}
+              onUpload={uploadDocuments}
+              settings={settings}
+              view={activeView}
+            />
+          )}
+        </main>
+      </div>
     </div>
   )
 }
