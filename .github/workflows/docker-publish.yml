@@ -1,0 +1,139 @@
+name: Publish and Deploy
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: frontend-production-deploy
+  cancel-in-progress: false
+
+env:
+  IMAGE_NAME: ghcr.io/tarapadilla/frontend-agente
+  DEPLOY_PATH: /home/opc/Proyectos/agente-frontend
+  VITE_API_BASE_URL: https://fastapi.tecnologiaydesarrolloweb.com
+
+jobs:
+  publish-and-deploy:
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'master'
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar commit validado
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Configurar Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Iniciar sesión en GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Construir y publicar imagen
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          build-args: |
+            VITE_API_BASE_URL=${{ env.VITE_API_BASE_URL }}
+          tags: |
+            ${{ env.IMAGE_NAME }}:latest
+            ${{ env.IMAGE_NAME }}:sha-${{ github.event.workflow_run.head_sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Configurar acceso SSH
+        env:
+          OCI_HOST: ${{ secrets.OCI_HOST }}
+          OCI_SSH_KEY: ${{ secrets.OCI_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          printf '%s\n' "$OCI_SSH_KEY" > ~/.ssh/oci_key
+          chmod 600 ~/.ssh/oci_key
+
+          ssh-keyscan -H "$OCI_HOST" >> ~/.ssh/known_hosts
+
+      - name: Desplegar en OCI
+        env:
+          OCI_HOST: ${{ secrets.OCI_HOST }}
+          OCI_USER: ${{ secrets.OCI_USER }}
+          IMAGE_TAG: sha-${{ github.event.workflow_run.head_sha }}
+        run: |
+          ssh -i ~/.ssh/oci_key "$OCI_USER@$OCI_HOST" "
+            set -e
+
+            cd '${{ env.DEPLOY_PATH }}'
+
+            git fetch origin master
+            git reset --hard origin/master
+
+            IMAGE_TAG='$IMAGE_TAG' docker compose pull
+            IMAGE_TAG='$IMAGE_TAG' docker compose up -d --remove-orphans
+
+            echo 'Esperando inicialización del contenedor...'
+
+            for intento in \$(seq 1 30); do
+              CONTENEDORES=\$(IMAGE_TAG='$IMAGE_TAG' docker compose ps -q)
+
+              if [ -z \"\$CONTENEDORES\" ]; then
+                echo 'No se encontraron contenedores activos.'
+                exit 1
+              fi
+
+              TODOS_LISTOS=true
+
+              for CONTENEDOR in \$CONTENEDORES; do
+                ESTADO=\$(docker inspect \
+                  --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \
+                  \"\$CONTENEDOR\")
+
+                echo \"Contenedor \$CONTENEDOR: \$ESTADO\"
+
+                if [ \"\$ESTADO\" = 'unhealthy' ] || \
+                   [ \"\$ESTADO\" = 'exited' ] || \
+                   [ \"\$ESTADO\" = 'dead' ]; then
+                  docker logs --tail 100 \"\$CONTENEDOR\"
+                  exit 1
+                fi
+
+                if [ \"\$ESTADO\" != 'healthy' ] && \
+                   [ \"\$ESTADO\" != 'running' ]; then
+                  TODOS_LISTOS=false
+                fi
+              done
+
+              if [ \"\$TODOS_LISTOS\" = true ]; then
+                echo 'Despliegue verificado correctamente.'
+                break
+              fi
+
+              if [ \"\$intento\" -eq 30 ]; then
+                echo 'El despliegue no alcanzó un estado saludable.'
+                docker compose ps
+                exit 1
+              fi
+
+              sleep 5
+            done
+
+            docker image prune -f
+          "

@@ -1,0 +1,13 @@
+services:
+  frontend:
+    image: ghcr.io/tarapadilla/frontend-agente:${IMAGE_TAG:-latest}
+    container_name: alianza-f1-agent-frontend
+    restart: unless-stopped
+    expose:
+      - "80"
+    networks:
+      - proxy-network
+
+networks:
+  proxy-network:
+    external: true
