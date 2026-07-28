@@ -1,28 +1,21 @@
 import {
-  ChevronDown,
   CircleEllipsis,
   Globe2,
-  LockKeyhole,
   MessageSquarePlus,
   PanelRightOpen,
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import type { Profile } from '../types/api'
 
 interface ChatHeaderProps {
   company: string
-  profile: Profile
   connected: boolean | null
-  onProfileChange: (profile: Profile) => void
   onNewConversation: () => void
   onOpenTechnicalPanel: () => void
 }
 
 export function ChatHeader({
   company,
-  profile,
   connected,
-  onProfileChange,
   onNewConversation,
   onOpenTechnicalPanel,
 }: ChatHeaderProps) {
@@ -69,29 +62,6 @@ export function ChatHeader({
           <span className="truncate">Asistente Comercial · {status}</span>
         </div>
       </div>
-
-      <label className="hidden items-center gap-2 rounded-full border border-slate-600/45 bg-[#15263a] px-3 py-2 text-xs text-slate-200 sm:flex">
-        {profile === 'public' ? (
-          <Globe2 className="size-4 text-cyan-300" />
-        ) : (
-          <LockKeyhole className="size-4 text-cyan-300" />
-        )}
-        <span className="text-slate-400">Conocimiento:</span>
-        <select
-          aria-label="Perfil documental"
-          className="appearance-none bg-transparent font-semibold text-white outline-none"
-          onChange={(event) => onProfileChange(event.target.value as Profile)}
-          value={profile}
-        >
-          <option className="bg-[#15263a]" value="public">
-            Público
-          </option>
-          <option className="bg-[#15263a]" value="internal">
-            Privado
-          </option>
-        </select>
-        <ChevronDown className="size-3.5 text-slate-400" />
-      </label>
 
       <button
         className="header-action hidden sm:inline-flex"

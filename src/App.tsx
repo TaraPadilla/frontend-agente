@@ -347,8 +347,6 @@ function App() {
                 connected={connected}
                 onNewConversation={resetConversation}
                 onOpenTechnicalPanel={() => setTechnicalPanelOpen(true)}
-                onProfileChange={changeProfile}
-                profile={profile}
               />
               <div className="flex min-h-0 flex-1">
                 {booting ? (
@@ -380,10 +378,12 @@ function App() {
               indexStatus={indexStatus}
               modelTest={modelTest}
               onDelete={deleteDocument}
+              onProfileChange={changeProfile}
               onSaveModel={saveModel}
               onSync={syncIndexes}
               onTestModel={testModel}
               onUpload={uploadDocuments}
+              profile={profile}
               settings={settings}
               view={activeView}
             />

@@ -13,6 +13,7 @@ import type {
   DocumentItem,
   IndexStatus,
   ModelTestResponse,
+  Profile,
   Settings,
   Visibility,
 } from '../types/api'
@@ -20,7 +21,9 @@ import type {
 interface WorkspaceViewProps {
   view: 'files' | 'settings'
   company: string
+  profile: Profile
   settings: Settings | null
+  onProfileChange: (profile: Profile) => void
   documents: Record<Visibility, DocumentItem[]>
   indexStatus: Record<Visibility, IndexStatus | null>
   busyAction: string | null
@@ -203,7 +206,9 @@ function Library({
 
 function SettingsWorkspace({
   company,
+  profile,
   settings,
+  onProfileChange,
   busyAction,
   modelTest,
   onSaveModel,
@@ -211,7 +216,9 @@ function SettingsWorkspace({
 }: Pick<
   WorkspaceViewProps,
   | 'company'
+  | 'profile'
   | 'settings'
+  | 'onProfileChange'
   | 'busyAction'
   | 'modelTest'
   | 'onSaveModel'
@@ -240,6 +247,33 @@ function SettingsWorkspace({
           id="settings-company"
           value={company}
         />
+
+        <label className="field-label" htmlFor="knowledge-profile">
+          Conocimiento documental
+        </label>
+        <div className="flex h-[52px] items-center gap-3 rounded-xl border border-slate-600/80 bg-[#07111f] px-3">
+          {profile === 'public' ? (
+            <Globe2 className="size-4 shrink-0 text-cyan-300" />
+          ) : (
+            <LockKeyhole className="size-4 shrink-0 text-cyan-300" />
+          )}
+          <select
+            aria-label="Perfil documental"
+            className="min-w-0 flex-1 appearance-none bg-transparent text-sm font-semibold text-white outline-none"
+            id="knowledge-profile"
+            onChange={(event) =>
+              onProfileChange(event.target.value as Profile)
+            }
+            value={profile}
+          >
+            <option className="bg-[#15263a]" value="public">
+              Público
+            </option>
+            <option className="bg-[#15263a]" value="internal">
+              Privado
+            </option>
+          </select>
+        </div>
 
         <label className="field-label" htmlFor="llm-model">
           Modelo LLM
