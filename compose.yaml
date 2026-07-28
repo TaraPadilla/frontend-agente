@@ -1,10 +1,6 @@
 services:
   frontend:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+    image: ghcr.io/tarapadilla/frontend-agente:${IMAGE_TAG:-latest}
     container_name: alianza-f1-agent-frontend
     restart: unless-stopped
     expose:
