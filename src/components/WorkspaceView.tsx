@@ -11,27 +11,32 @@ import {
 import { useEffect, useRef, useState } from 'react'
 import type {
   DocumentItem,
+  CompanySettings,
+  GlobalSettings,
   IndexStatus,
   ModelTestResponse,
-  Profile,
-  Settings,
+  SyncResult,
   Visibility,
 } from '../types/api'
 
 interface WorkspaceViewProps {
   view: 'files' | 'settings'
   company: string
-  profile: Profile
-  settings: Settings | null
-  onProfileChange: (profile: Profile) => void
+  companySettings: CompanySettings
+  globalSettings: GlobalSettings | null
+  extensions: string[]
+  superadmin: boolean
+  onPublicAccessChange: (enabled: boolean) => Promise<void>
   documents: Record<Visibility, DocumentItem[]>
   indexStatus: Record<Visibility, IndexStatus | null>
   busyAction: string | null
   modelTest: ModelTestResponse | null
+  syncResults: Record<Visibility, SyncResult[] | null>
   onSaveModel: (model: string) => Promise<void>
+  onSaveEmbeddings: (model: string, dimensions: number) => Promise<void>
   onTestModel: () => Promise<void>
-  onUpload: (visibility: Visibility, files: File[]) => Promise<void>
-  onDelete: (visibility: Visibility, name: string) => Promise<void>
+  onUpload: (visibility: Visibility, files: File[]) => Promise<boolean>
+  onDelete: (visibility: Visibility, name: string) => Promise<boolean>
   onSync: (visibility: Visibility) => Promise<void>
 }
 
@@ -55,8 +60,10 @@ interface LibraryProps {
   status: IndexStatus | null
   extensions: string[]
   busyAction: string | null
-  onUpload: (visibility: Visibility, files: File[]) => Promise<void>
-  onDelete: (visibility: Visibility, name: string) => Promise<void>
+  reindexPending: boolean
+  syncResults: SyncResult[] | null
+  onUpload: (visibility: Visibility, files: File[]) => Promise<boolean>
+  onDelete: (visibility: Visibility, name: string) => Promise<boolean>
   onSync: (visibility: Visibility) => Promise<void>
 }
 
@@ -66,6 +73,8 @@ function Library({
   status,
   extensions,
   busyAction,
+  reindexPending,
+  syncResults,
   onUpload,
   onDelete,
   onSync,
@@ -89,7 +98,15 @@ function Library({
           <button
             className="header-action"
             disabled={isBusy}
-            onClick={() => void onSync(visibility)}
+            onClick={() => {
+              if (
+                window.confirm(
+                  `¿Deseas sincronizar la biblioteca ${visibility}?`,
+                )
+              ) {
+                void onSync(visibility)
+              }
+            }}
             type="button"
           >
             <RefreshCw
@@ -131,7 +148,15 @@ function Library({
                     aria-label={`Eliminar ${document.name}`}
                     className="icon-button hover:text-rose-300"
                     disabled={isBusy}
-                    onClick={() => void onDelete(visibility, document.name)}
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          `¿Deseas eliminar ${document.name}? Esta acción no se puede deshacer.`,
+                        )
+                      ) {
+                        void onDelete(visibility, document.name)
+                      }
+                    }}
                     type="button"
                   >
                     <Trash2 className="size-4" />
@@ -160,6 +185,26 @@ function Library({
             {formatDate(status?.last_complete_indexing)}
           </strong>
         </p>
+
+        {reindexPending && (
+          <div className="rounded-xl border border-amber-300/30 bg-amber-300/10 p-4 text-xs leading-5 text-amber-100">
+            Los embeddings cambiaron. Esta empresa requiere una reconstrucción
+            completa de sus índices.
+          </div>
+        )}
+
+        {syncResults && (
+          <div className="rounded-xl border border-emerald-300/25 bg-emerald-300/10 p-4 text-xs text-emerald-100">
+            <strong>Última sincronización</strong>
+            {syncResults.map((result) => (
+              <p className="mt-2 leading-5" key={result.profile}>
+                {result.profile}: {result.new} nuevos, {result.updated}{' '}
+                actualizados, {result.deleted} eliminados y {result.unchanged}{' '}
+                sin cambios.
+              </p>
+            ))}
+          </div>
+        )}
 
         <div className="rounded-xl border border-slate-700/60 bg-[#0a1727] p-4">
           <p className="text-xs font-bold text-white">
@@ -190,9 +235,11 @@ function Library({
             className="primary-button mt-3 w-full"
             disabled={!files.length || isBusy}
             onClick={async () => {
-              await onUpload(visibility, files)
-              setFiles([])
-              if (inputRef.current) inputRef.current.value = ''
+              const saved = await onUpload(visibility, files)
+              if (saved) {
+                setFiles([])
+                if (inputRef.current) inputRef.current.value = ''
+              }
             }}
             type="button"
           >
@@ -206,133 +253,191 @@ function Library({
 
 function SettingsWorkspace({
   company,
-  profile,
-  settings,
-  onProfileChange,
+  companySettings,
+  globalSettings,
+  superadmin,
+  onPublicAccessChange,
   busyAction,
   modelTest,
   onSaveModel,
+  onSaveEmbeddings,
   onTestModel,
 }: Pick<
   WorkspaceViewProps,
   | 'company'
-  | 'profile'
-  | 'settings'
-  | 'onProfileChange'
+  | 'companySettings'
+  | 'globalSettings'
+  | 'superadmin'
+  | 'onPublicAccessChange'
   | 'busyAction'
   | 'modelTest'
   | 'onSaveModel'
+  | 'onSaveEmbeddings'
   | 'onTestModel'
 >) {
-  const [model, setModel] = useState('')
+  const [llmModel, setLlmModel] = useState('')
+  const [embeddingModel, setEmbeddingModel] = useState('')
+  const [embeddingDimensions, setEmbeddingDimensions] = useState(0)
 
   useEffect(() => {
-    setModel(settings?.llm_model ?? '')
-  }, [settings?.llm_model])
+    setLlmModel(globalSettings?.llm_model ?? '')
+    setEmbeddingModel(globalSettings?.embedding_model ?? '')
+    setEmbeddingDimensions(globalSettings?.embedding_dimensions ?? 0)
+  }, [globalSettings])
 
   return (
     <div className="grid gap-4 xl:grid-cols-2">
       <section className="rounded-xl border border-slate-700/60 bg-[#0a1727] p-5">
-        <h3 className="text-sm font-bold text-white">Configuración general</h3>
+        <h3 className="text-sm font-bold text-white">Configuración empresarial</h3>
         <p className="mt-1 text-xs text-slate-400">
-          Parámetros operativos disponibles en la API actual.
+          Estos ajustes afectan únicamente a {company}.
         </p>
 
-        <label className="field-label" htmlFor="settings-company">
-          Empresa
-        </label>
-        <input
-          className="text-input w-full text-slate-400"
-          disabled
-          id="settings-company"
-          value={company}
-        />
-
-        <label className="field-label" htmlFor="knowledge-profile">
-          Conocimiento documental
-        </label>
-        <div className="flex h-[52px] items-center gap-3 rounded-xl border border-slate-600/80 bg-[#07111f] px-3">
-          {profile === 'public' ? (
-            <Globe2 className="size-4 shrink-0 text-cyan-300" />
-          ) : (
-            <LockKeyhole className="size-4 shrink-0 text-cyan-300" />
-          )}
-          <select
-            aria-label="Perfil documental"
-            className="min-w-0 flex-1 appearance-none bg-transparent text-sm font-semibold text-white outline-none"
-            id="knowledge-profile"
-            onChange={(event) =>
-              onProfileChange(event.target.value as Profile)
-            }
-            value={profile}
-          >
-            <option className="bg-[#15263a]" value="public">
-              Público
-            </option>
-            <option className="bg-[#15263a]" value="internal">
-              Privado
-            </option>
-          </select>
-        </div>
-
-        <label className="field-label" htmlFor="llm-model">
-          Modelo LLM
-        </label>
-        <div className="flex gap-2">
+        <label className="mt-6 flex items-start gap-3 rounded-xl border border-slate-600/70 bg-[#07111f] p-4 text-sm text-slate-200">
           <input
-            className="text-input min-w-0 flex-1"
-            id="llm-model"
-            maxLength={160}
-            onChange={(event) => setModel(event.target.value)}
-            value={model}
+            checked={companySettings.public_access_enabled}
+            className="mt-1"
+            disabled={busyAction !== null}
+            onChange={(event) =>
+              void onPublicAccessChange(event.target.checked)
+            }
+            type="checkbox"
+          />
+          <span>
+            <strong className="block text-white">Acceso público</strong>
+            <span className="mt-1 block text-xs leading-5 text-slate-400">
+              Al deshabilitarlo, la empresa desaparece del selector público. El
+              administrador conserva el acceso autenticado y los documentos
+              privados permanecen protegidos.
+            </span>
+          </span>
+        </label>
+
+        {companySettings.reindex_pending && (
+          <div className="mt-4 rounded-xl border border-amber-300/30 bg-amber-300/10 p-3 text-xs leading-5 text-amber-100">
+            Esta empresa requiere reindexación porque cambió la configuración
+            global de embeddings.
+          </div>
+        )}
+      </section>
+
+      {superadmin && globalSettings && (
+        <section className="rounded-xl border border-cyan-300/20 bg-[#0a1727] p-5">
+          <h3 className="text-sm font-bold text-white">
+            Configuración global de plataforma
+          </h3>
+          <p className="mt-1 text-xs leading-5 text-slate-400">
+            Disponible únicamente para superadmin y aplicable a todas las
+            empresas.
+          </p>
+
+          <label className="field-label" htmlFor="llm-model">
+            Modelo LLM
+          </label>
+          <div className="flex gap-2">
+            <input
+              className="text-input min-w-0 flex-1"
+              id="llm-model"
+              maxLength={200}
+              onChange={(event) => setLlmModel(event.target.value)}
+              value={llmModel}
+            />
+            <button
+              aria-label="Guardar modelo LLM"
+              className="grid size-[52px] shrink-0 place-items-center rounded-xl border border-slate-600/80 bg-[#0c1730] text-cyan-200 hover:border-cyan-300/40 disabled:opacity-40"
+              disabled={!llmModel.trim() || busyAction !== null}
+              onClick={() => void onSaveModel(llmModel.trim())}
+              type="button"
+            >
+              <Save className="size-5" />
+            </button>
+          </div>
+          <p className="mt-2 text-[11px] text-slate-500">
+            Cambiar el LLM no requiere reindexación.
+          </p>
+
+          <label className="field-label" htmlFor="embedding-model">
+            Modelo de embeddings
+          </label>
+          <input
+            className="text-input w-full"
+            id="embedding-model"
+            maxLength={200}
+            onChange={(event) => setEmbeddingModel(event.target.value)}
+            value={embeddingModel}
+          />
+          <label className="field-label" htmlFor="embedding-dimensions">
+            Dimensiones
+          </label>
+          <input
+            className="text-input w-full"
+            id="embedding-dimensions"
+            min={1}
+            onChange={(event) =>
+              setEmbeddingDimensions(Number(event.target.value))
+            }
+            type="number"
+            value={embeddingDimensions}
           />
           <button
-            aria-label="Guardar modelo"
-            className="grid size-[52px] shrink-0 place-items-center rounded-xl border border-slate-600/80 bg-[#0c1730] text-cyan-200 hover:border-cyan-300/40 disabled:opacity-40"
-            disabled={!model.trim() || busyAction !== null}
-            onClick={() => void onSaveModel(model.trim())}
+            className="primary-button mt-4 w-full"
+            disabled={
+              !embeddingModel.trim() ||
+              embeddingDimensions < 1 ||
+              busyAction !== null
+            }
+            onClick={() => {
+              if (
+                window.confirm(
+                  'Cambiar embeddings marcará todas las empresas para reindexación. ¿Deseas continuar?',
+                )
+              ) {
+                void onSaveEmbeddings(
+                  embeddingModel.trim(),
+                  embeddingDimensions,
+                )
+              }
+            }}
             type="button"
           >
-            <Save className="size-5" />
+            {busyAction === 'save-embeddings'
+              ? 'Actualizando…'
+              : 'Actualizar embeddings'}
           </button>
-        </div>
+        </section>
+      )}
 
-        {settings?.reindex_pending && (
-          <div className="mt-4 rounded-xl border border-amber-300/30 bg-amber-300/10 p-3 text-xs leading-5 text-amber-100">
-            La configuración cambió. Sincroniza los índices antes de consultar.
-          </div>
-        )}
-      </section>
-
-      <section className="rounded-xl border border-slate-700/60 bg-[#0a1727] p-5">
-        <h3 className="text-sm font-bold text-white">Diagnóstico del modelo</h3>
-        <p className="mt-1 text-xs leading-5 text-slate-400">
-          Comprueba el modelo configurado sin ejecutar el pipeline RAG.
-        </p>
-        <button
-          className="secondary-button mt-5 w-full"
-          disabled={busyAction !== null}
-          onClick={() => void onTestModel()}
-          type="button"
-        >
-          <Bot className="size-4" />
-          {busyAction === 'test-model' ? 'Probando…' : 'Probar modelo'}
-        </button>
-        {modelTest && (
-          <div
-            className={`mt-4 rounded-xl border p-4 text-xs leading-5 ${
-              modelTest.success
-                ? 'border-emerald-300/30 bg-emerald-300/10 text-emerald-100'
-                : 'border-rose-300/30 bg-rose-300/10 text-rose-100'
-            }`}
+      {superadmin && (
+        <section className="rounded-xl border border-slate-700/60 bg-[#0a1727] p-5">
+          <h3 className="text-sm font-bold text-white">Diagnóstico del modelo</h3>
+          <p className="mt-1 text-xs leading-5 text-slate-400">
+            Comprueba el LLM configurado sin ejecutar el pipeline RAG.
+          </p>
+          <button
+            className="secondary-button mt-5 w-full"
+            disabled={busyAction !== null}
+            onClick={() => void onTestModel()}
+            type="button"
           >
-            <strong>
-              {modelTest.success ? 'Modelo disponible' : 'Prueba fallida'}
-            </strong>
-            <p className="mt-1">{modelTest.response}</p>
-          </div>
-        )}
-      </section>
+            <Bot className="size-4" />
+            {busyAction === 'test-model' ? 'Probando…' : 'Probar modelo'}
+          </button>
+          {modelTest && (
+            <div
+              className={`mt-4 rounded-xl border p-4 text-xs leading-5 ${
+                modelTest.success
+                  ? 'border-emerald-300/30 bg-emerald-300/10 text-emerald-100'
+                  : 'border-rose-300/30 bg-rose-300/10 text-rose-100'
+              }`}
+            >
+              <strong>
+                {modelTest.success ? 'Modelo disponible' : 'Prueba fallida'}
+              </strong>
+              <p className="mt-1">{modelTest.response}</p>
+            </div>
+          )}
+        </section>
+      )}
     </div>
   )
 }
@@ -382,11 +487,13 @@ export function WorkspaceView(props: WorkspaceViewProps) {
         <Library
           busyAction={props.busyAction}
           documents={props.documents[visibility]}
-          extensions={props.settings?.supported_upload_extensions ?? []}
+          extensions={props.extensions}
           onDelete={props.onDelete}
           onSync={props.onSync}
           onUpload={props.onUpload}
+          reindexPending={props.companySettings.reindex_pending}
           status={props.indexStatus[visibility]}
+          syncResults={props.syncResults[visibility]}
           visibility={visibility}
         />
       ) : (

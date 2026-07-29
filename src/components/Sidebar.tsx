@@ -2,32 +2,35 @@ import {
   Building2,
   ChevronDown,
   Files,
-  Globe2,
-  LockKeyhole,
+  LogOut,
   Menu,
   MessageCircle,
   Settings,
   UserRound,
   X,
 } from 'lucide-react'
-import type { Profile } from '../types/api'
+import type { Company, UserEnvironment } from '../types/api'
 
 export type AppView = 'chat' | 'files' | 'settings'
 
 interface SidebarProps {
   open: boolean
   activeView: AppView
-  companies: string[]
+  companies: Company[]
   company: string
-  profile: Profile
+  environment: UserEnvironment | null
   onToggle: () => void
   onClose: () => void
   onNavigate: (view: AppView) => void
   onCompanyChange: (company: string) => void
-  onProfileChange: (profile: Profile) => void
+  onAuthenticate: (
+    intent: 'login' | 'register',
+    provider: 'google' | 'github',
+  ) => Promise<void>
+  onLogout: () => void
 }
 
-const navigation = [
+const adminNavigation = [
   { id: 'chat' as const, label: 'Chat', icon: MessageCircle },
   { id: 'files' as const, label: 'Archivos', icon: Files },
   { id: 'settings' as const, label: 'Configuración', icon: Settings },
@@ -38,13 +41,17 @@ export function Sidebar({
   activeView,
   companies,
   company,
-  profile,
+  environment,
   onToggle,
   onClose,
   onNavigate,
   onCompanyChange,
-  onProfileChange,
+  onAuthenticate,
+  onLogout,
 }: SidebarProps) {
+  const navigation = environment?.membership_role === 'admin'
+    ? adminNavigation
+    : [{ id: 'chat' as const, label: 'Chat', icon: MessageCircle }]
   return (
     <>
       <button
@@ -114,64 +121,103 @@ export function Sidebar({
         </nav>
 
         <div className="mt-auto px-4 pb-4">
-          <div className="overflow-hidden rounded-xl border border-slate-600/45 bg-[#0b1a2d]">
-            <label className="block border-b border-slate-700/60 px-4 py-3">
-              <span className="text-[11px] text-slate-400">Perfil activo</span>
-              <span className="mt-1 flex items-center gap-2 text-sm font-semibold text-cyan-300">
-                {profile === 'public' ? (
-                  <Globe2 className="size-4" />
-                ) : (
-                  <LockKeyhole className="size-4" />
-                )}
-                <select
-                  aria-label="Perfil activo"
-                  className="min-w-0 flex-1 appearance-none bg-transparent text-cyan-300 outline-none"
-                  onChange={(event) =>
-                    onProfileChange(event.target.value as Profile)
-                  }
-                  value={profile}
-                >
-                  <option className="bg-[#0b1a2d]" value="public">
-                    Public
-                  </option>
-                  <option className="bg-[#0b1a2d]" value="internal">
-                    Private
-                  </option>
-                </select>
-                <ChevronDown className="size-4" />
+          {environment ? (
+            <div className="rounded-xl border border-slate-600/45 bg-[#0b1a2d] p-4">
+              <span className="text-[11px] text-slate-400">
+                Empresa administrada
               </span>
-            </label>
-
-            <label className="block px-4 py-3">
-              <span className="text-[11px] text-slate-400">Empresa</span>
-              <span className="mt-1 flex items-center gap-2 text-sm font-semibold text-white">
-                <Building2 className="size-4 text-slate-400" />
-                <select
-                  aria-label="Empresa activa"
-                  className="min-w-0 flex-1 appearance-none bg-transparent text-white outline-none"
-                  onChange={(event) => onCompanyChange(event.target.value)}
-                  value={company}
+              <p className="mt-1 flex items-center gap-2 truncate text-sm font-semibold">
+                <Building2 className="size-4 text-cyan-300" />
+                {environment.company_name}
+              </p>
+              <p className="mt-2 text-[11px] text-slate-400">
+                {environment.membership_role} · {environment.platform_role}
+              </p>
+            </div>
+          ) : (
+            <>
+              <label className="block rounded-xl border border-slate-600/45 bg-[#0b1a2d] px-4 py-3">
+                <span className="text-[11px] text-slate-400">
+                  Empresa pública
+                </span>
+                <span className="mt-1 flex items-center gap-2 text-sm font-semibold text-white">
+                  <Building2 className="size-4 text-slate-400" />
+                  <select
+                    aria-label="Empresa pública"
+                    className="min-w-0 flex-1 appearance-none bg-transparent text-white outline-none"
+                    disabled={companies.length === 0}
+                    onChange={(event) => onCompanyChange(event.target.value)}
+                    value={company}
+                  >
+                    {companies.map((item) => (
+                      <option
+                        className="bg-[#0b1a2d]"
+                        key={item.knowledge_key}
+                        value={item.knowledge_key}
+                      >
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="size-4 text-slate-400" />
+                </span>
+              </label>
+              <div className="mt-3 grid gap-2">
+                <button
+                  className="secondary-button w-full"
+                  onClick={() => void onAuthenticate('login', 'google')}
+                  type="button"
                 >
-                  {companies.map((item) => (
-                    <option className="bg-[#0b1a2d]" key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="size-4 text-slate-400" />
-              </span>
-            </label>
-          </div>
+                  Iniciar sesión con Google
+                </button>
+                <button
+                  className="secondary-button w-full"
+                  onClick={() => void onAuthenticate('login', 'github')}
+                  type="button"
+                >
+                  Iniciar sesión con GitHub
+                </button>
+                <button
+                  className="primary-button w-full"
+                  onClick={() => void onAuthenticate('register', 'google')}
+                  type="button"
+                >
+                  Registra tu empresa gratis
+                </button>
+                <button
+                  className="secondary-button w-full"
+                  onClick={() => void onAuthenticate('register', 'github')}
+                  type="button"
+                >
+                  Registrar con GitHub
+                </button>
+              </div>
+            </>
+          )}
         </div>
 
         <div className="flex items-center gap-3 border-t border-slate-700/60 px-5 py-4">
           <div className="grid size-9 shrink-0 place-items-center rounded-full bg-slate-100 text-[#0a1727]">
             <UserRound className="size-[18px]" />
           </div>
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-white">Usuario local</p>
-            <p className="text-[11px] text-slate-400">Sin autenticación</p>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold text-white">
+              {environment ? 'Usuario autenticado' : 'Visitante'}
+            </p>
+            <p className="text-[11px] text-slate-400">
+              {environment ? environment.membership_role : 'viewer'}
+            </p>
           </div>
+          {environment && (
+            <button
+              aria-label="Cerrar sesión"
+              className="icon-button"
+              onClick={onLogout}
+              type="button"
+            >
+              <LogOut className="size-4" />
+            </button>
+          )}
         </div>
       </aside>
     </>

@@ -3,15 +3,20 @@ import { useState } from 'react'
 
 interface ChatComposerProps {
   loading: boolean
+  disabled?: boolean
   onSubmit: (question: string) => Promise<void>
 }
 
-export function ChatComposer({ loading, onSubmit }: ChatComposerProps) {
+export function ChatComposer({
+  loading,
+  disabled = false,
+  onSubmit,
+}: ChatComposerProps) {
   const [question, setQuestion] = useState('')
 
   async function send() {
     const cleanQuestion = question.trim()
-    if (!cleanQuestion || loading) return
+    if (!cleanQuestion || loading || disabled) return
     setQuestion('')
     await onSubmit(cleanQuestion)
   }
@@ -40,7 +45,7 @@ export function ChatComposer({ loading, onSubmit }: ChatComposerProps) {
         </label>
         <textarea
           className="max-h-32 min-h-10 flex-1 resize-none bg-transparent py-2.5 text-sm text-slate-800 outline-none placeholder:text-slate-400"
-          disabled={loading}
+          disabled={loading || disabled}
           id="chat-question"
           maxLength={4000}
           onChange={(event) => setQuestion(event.target.value)}
@@ -50,7 +55,11 @@ export function ChatComposer({ loading, onSubmit }: ChatComposerProps) {
               void send()
             }
           }}
-          placeholder="Escribe tu pregunta..."
+          placeholder={
+            disabled
+              ? 'El chat no está disponible temporalmente'
+              : 'Escribe tu pregunta...'
+          }
           rows={1}
           value={question}
         />
@@ -68,7 +77,7 @@ export function ChatComposer({ loading, onSubmit }: ChatComposerProps) {
       <button
         aria-label="Enviar pregunta"
         className="grid size-11 shrink-0 place-items-center rounded-full bg-[#149e9e] text-white shadow-md transition hover:bg-[#108989] disabled:cursor-not-allowed disabled:opacity-40"
-        disabled={loading || !question.trim()}
+        disabled={loading || disabled || !question.trim()}
         type="submit"
       >
         <SendHorizontal className="size-[18px]" />

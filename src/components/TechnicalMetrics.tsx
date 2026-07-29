@@ -1,9 +1,8 @@
 import { ShieldCheck } from 'lucide-react'
-import type { QueryResponse, Settings } from '../types/api'
+import type { QueryResponse } from '../types/api'
 
 interface TechnicalMetricsProps {
   query: QueryResponse | null
-  settings: Settings | null
 }
 
 function metricValue(value: string | number | null | undefined) {
@@ -13,13 +12,9 @@ function metricValue(value: string | number | null | undefined) {
   return String(value)
 }
 
-export function TechnicalMetrics({
-  query,
-  settings,
-}: TechnicalMetricsProps) {
+export function TechnicalMetrics({ query }: TechnicalMetricsProps) {
   const metrics = [
-    ['Modelo (LLM)', metricValue(query?.model ?? settings?.llm_model)],
-    ['Embeddings', metricValue(settings?.embedding_model)],
+    ['Modelo (LLM)', metricValue(query?.model)],
     [
       'Fragmentos recuperados',
       metricValue(query?.diagnostics.retrieved_fragments),

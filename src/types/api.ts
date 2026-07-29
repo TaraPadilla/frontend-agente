@@ -1,23 +1,56 @@
 export type Profile = 'public' | 'internal'
 export type Visibility = 'Public' | 'Private'
+export type PlatformRole = 'user' | 'superadmin'
+export type MembershipRole = 'admin' | 'editor'
 
 export interface Company {
   name: string
+  knowledge_key: string
 }
 
 export interface CompaniesResponse {
-  active_company: string
+  default_company: string
   companies: Company[]
 }
 
-export interface Settings {
-  active_company: string
-  allowed_visibilities: string[]
+export interface GlobalSettings {
   llm_model: string
   embedding_model: string
   embedding_dimensions: number
+}
+
+export interface CompanySettings {
+  public_access_enabled: boolean
   reindex_pending: boolean
+}
+
+export interface UserEnvironment {
+  user_id: string
+  platform_role: PlatformRole
+  company_id: string
+  company_name: string
+  knowledge_key: string
+  membership_role: MembershipRole
+  document_scope: Visibility[]
+  company_settings: CompanySettings
   supported_upload_extensions: string[]
+}
+
+export interface RegisterCompanyRequest {
+  name: string
+  public_access_enabled: boolean
+}
+
+export interface RegisteredCompany {
+  name: string
+  knowledge_key: string
+  role: 'admin'
+  public_access_enabled: boolean
+}
+
+export interface UpdateEmbeddingsRequest {
+  model: string
+  dimensions: number
 }
 
 export interface ModelTestResponse {
@@ -76,16 +109,15 @@ export interface Source {
   file: string
   section: string
   fragment_reference: string
-  visibility: string
+  visibility: Visibility
   file_type: string
   page: number | null
 }
 
 export interface QueryRequest {
   question: string
-  company: string
-  profile: Profile
-  top_k: number
+  company?: string
+  top_k?: number
 }
 
 export interface QueryResponse {
@@ -104,9 +136,9 @@ export interface QueryResponse {
 }
 
 export interface ApiErrorBody {
-  error?: {
-    codigo?: string
-    mensaje?: string
-    detalles?: unknown
+  error: {
+    codigo: string
+    mensaje: string
+    detalles?: Array<Record<string, unknown>> | null
   }
 }

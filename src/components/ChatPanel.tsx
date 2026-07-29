@@ -6,6 +6,7 @@ import { ChatMessage, type ChatMessageData } from './ChatMessage'
 interface ChatPanelProps {
   messages: ChatMessageData[]
   loading: boolean
+  unavailableMessage?: string
   onSubmit: (question: string) => Promise<void>
   onFeedback: (messageId: string, feedback: 'up' | 'down') => void
 }
@@ -19,6 +20,7 @@ const suggestions = [
 export function ChatPanel({
   messages,
   loading,
+  unavailableMessage,
   onSubmit,
   onFeedback,
 }: ChatPanelProps) {
@@ -39,6 +41,14 @@ export function ChatPanel({
           </div>
 
           <div className="space-y-4 pb-7">
+            {unavailableMessage && (
+              <div
+                className="rounded-xl border border-rose-300/30 bg-rose-50 px-4 py-3 text-sm text-rose-900"
+                role="alert"
+              >
+                {unavailableMessage}
+              </div>
+            )}
             {messages.map((message) => (
               <ChatMessage
                 key={message.id}
@@ -47,7 +57,7 @@ export function ChatPanel({
               />
             ))}
 
-            {messages.length === 1 && !loading && (
+            {messages.length === 1 && !loading && !unavailableMessage && (
               <div className="mx-auto grid w-full max-w-2xl gap-2 pt-2 sm:grid-cols-3">
                 {suggestions.map((suggestion) => (
                   <button
@@ -80,7 +90,11 @@ export function ChatPanel({
         </div>
       </div>
 
-      <ChatComposer loading={loading} onSubmit={onSubmit} />
+      <ChatComposer
+        disabled={!!unavailableMessage}
+        loading={loading}
+        onSubmit={onSubmit}
+      />
     </section>
   )
 }

@@ -1,5 +1,5 @@
 import { X } from 'lucide-react'
-import type { QueryResponse, Settings, Source } from '../types/api'
+import type { QueryResponse, Source } from '../types/api'
 import { SourcesPanel } from './SourcesPanel'
 import { TechnicalMetrics } from './TechnicalMetrics'
 
@@ -7,19 +7,17 @@ interface TechnicalPanelProps {
   open: boolean
   sources: Source[]
   query: QueryResponse | null
-  settings: Settings | null
   onClose: () => void
 }
 
 function PanelContent({
   sources,
   query,
-  settings,
-}: Pick<TechnicalPanelProps, 'sources' | 'query' | 'settings'>) {
+}: Pick<TechnicalPanelProps, 'sources' | 'query'>) {
   return (
     <div className="technical-panel-scroll flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
       <SourcesPanel sources={sources} />
-      <TechnicalMetrics query={query} settings={settings} />
+      <TechnicalMetrics query={query} />
     </div>
   )
 }
@@ -28,13 +26,12 @@ export function TechnicalPanel({
   open,
   sources,
   query,
-  settings,
   onClose,
 }: TechnicalPanelProps) {
   return (
     <>
       <aside className="hidden min-h-0 w-[320px] shrink-0 flex-col border-l border-slate-700/55 bg-[#081525] xl:flex">
-        <PanelContent query={query} settings={settings} sources={sources} />
+        <PanelContent query={query} sources={sources} />
       </aside>
 
       {open && (
@@ -57,7 +54,7 @@ export function TechnicalPanel({
                 <X className="size-5" />
               </button>
             </header>
-            <PanelContent query={query} settings={settings} sources={sources} />
+            <PanelContent query={query} sources={sources} />
           </aside>
         </div>
       )}
