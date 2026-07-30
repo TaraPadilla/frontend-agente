@@ -377,6 +377,33 @@ describe('flujos principales de App', () => {
     )
   })
 
+  it('cierra localmente aunque la sesión de Supabase ya no exista', async () => {
+    mocks.getSession
+      .mockResolvedValueOnce({
+        data: { session: { access_token: 'token' } },
+      })
+      .mockResolvedValue({ data: { session: null } })
+    mocks.signOut.mockResolvedValue({
+      error: Object.assign(new Error('Auth session missing!'), {
+        name: 'AuthSessionMissingError',
+      }),
+    })
+    render(<App />)
+    const user = userEvent.setup()
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Cerrar sesión' }),
+    )
+
+    expect(mocks.signOut).toHaveBeenCalledWith({ scope: 'local' })
+    await waitFor(() =>
+      expect(
+        screen.getByRole('combobox', { name: 'Empresa pública' }),
+      ).toBeInTheDocument(),
+    )
+    expect(screen.queryByText('Auth session missing!')).not.toBeInTheDocument()
+  })
+
   it('solicita confirmación propia antes de reemplazar documentos', async () => {
     mocks.getSession.mockResolvedValue({
       data: { session: { access_token: 'token' } },

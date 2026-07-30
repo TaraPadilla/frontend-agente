@@ -101,6 +101,13 @@ function errorMessage(error: unknown) {
   return 'Ocurrió un error inesperado.'
 }
 
+function isMissingAuthSession(error: unknown) {
+  return (
+    error instanceof Error &&
+    error.name === 'AuthSessionMissingError'
+  )
+}
+
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [activeView, setActiveView] = useState<AppView>('chat')
@@ -365,12 +372,19 @@ function App() {
 
   async function logout() {
     try {
-      const { error } = await supabase.auth.signOut()
-      if (error) throw error
+      const { error } = await supabase.auth.signOut({ scope: 'local' })
+      if (error && !isMissingAuthSession(error)) throw error
       clearAuthenticationTracking()
       setAuthenticatedError(null)
       setRegistrationRequired(false)
+      setSessionExpired(false)
+      setEnvironment(null)
+      setGlobalSettings(null)
+      setActiveView('chat')
       resetConversation()
+      if (error) {
+        setAuthRevision((value) => value + 1)
+      }
     } catch (error) {
       reportActionError(error)
     }
