@@ -29,6 +29,7 @@ const mocks = vi.hoisted(() => {
     onAuthStateChange: vi.fn(),
     signOut: vi.fn(),
     startOAuth: vi.fn(),
+    trackAuthenticationEvent: vi.fn(),
     companies: vi.fn(),
     environment: vi.fn(),
     settings: vi.fn(),
@@ -77,6 +78,10 @@ vi.mock('./services/api', () => ({
   },
 }))
 
+vi.mock('./services/analytics', () => ({
+  trackAuthenticationEvent: mocks.trackAuthenticationEvent,
+}))
+
 import App from './App'
 
 const catalog = {
@@ -113,6 +118,7 @@ const queryResponse = {
 
 describe('flujos principales de App', () => {
   beforeEach(() => {
+    sessionStorage.clear()
     mocks.getSession.mockResolvedValue({ data: { session: null } })
     mocks.onAuthStateChange.mockReturnValue({
       data: { subscription: { unsubscribe: vi.fn() } },
@@ -132,6 +138,30 @@ describe('flujos principales de App', () => {
       role: 'admin',
       public_access_enabled: true,
     })
+  })
+
+  it('registra el inicio de autenticación con intención y proveedor', async () => {
+    render(<App />)
+    const user = userEvent.setup()
+
+    await screen.findByRole('combobox', { name: 'Empresa pública' })
+    await user.click(
+      screen.getByRole('button', { name: 'Iniciar sesión con Google' }),
+    )
+    await user.click(
+      screen.getByRole('button', { name: 'Registrar con GitHub' }),
+    )
+
+    expect(mocks.trackAuthenticationEvent).toHaveBeenNthCalledWith(
+      1,
+      'login_start',
+      'google',
+    )
+    expect(mocks.trackAuthenticationEvent).toHaveBeenNthCalledWith(
+      2,
+      'sign_up_start',
+      'github',
+    )
   })
 
   it('selecciona default_company y consulta como viewer con company', async () => {
@@ -156,6 +186,8 @@ describe('flujos principales de App', () => {
   })
 
   it('restaura sesión, fija empresa y consulta sin company', async () => {
+    sessionStorage.setItem('auth-intent', 'login')
+    sessionStorage.setItem('auth-provider', 'google')
     mocks.getSession.mockResolvedValue({
       data: { session: { access_token: 'token' } },
     })
@@ -168,6 +200,10 @@ describe('flujos principales de App', () => {
     const user = userEvent.setup()
 
     expect((await screen.findAllByText('Empresa Privada')).length).toBeGreaterThan(0)
+    expect(mocks.trackAuthenticationEvent).toHaveBeenCalledWith(
+      'login',
+      'google',
+    )
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
     await user.type(screen.getByLabelText('Escribe tu pregunta'), 'Interna')
     await user.click(screen.getByRole('button', { name: 'Enviar pregunta' }))
@@ -181,6 +217,8 @@ describe('flujos principales de App', () => {
   })
 
   it('muestra registro cuando el usuario autenticado no tiene empresa', async () => {
+    sessionStorage.setItem('auth-intent', 'register')
+    sessionStorage.setItem('auth-provider', 'github')
     mocks.getSession.mockResolvedValue({
       data: { session: { access_token: 'token' } },
     })
@@ -208,6 +246,10 @@ describe('flujos principales de App', () => {
         name: 'Nueva Empresa',
         public_access_enabled: true,
       }),
+    )
+    expect(mocks.trackAuthenticationEvent).toHaveBeenCalledWith(
+      'sign_up',
+      'github',
     )
     expect((await screen.findAllByText('Empresa Privada')).length).toBeGreaterThan(0)
   })

@@ -1,6 +1,7 @@
 import { render, waitFor } from '@testing-library/react'
 import { StrictMode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { trackAuthenticationEvent } from '../services/analytics'
 import { GoogleAnalytics } from './GoogleAnalytics'
 
 function analyticsCalls() {
@@ -68,5 +69,32 @@ describe('GoogleAnalytics', () => {
         page_location: `${window.location.origin}/agente`,
       },
     ])
+  })
+
+  it('sends authentication events with only the destination and method', () => {
+    vi.stubEnv('VITE_GA_MEASUREMENT_ID', 'G-FN337E83YN')
+    window.gtag = vi.fn()
+
+    trackAuthenticationEvent('login_start', 'google')
+    trackAuthenticationEvent('sign_up_start', 'github')
+    trackAuthenticationEvent('login', 'google')
+    trackAuthenticationEvent('sign_up', 'github')
+
+    expect(window.gtag).toHaveBeenNthCalledWith(1, 'event', 'login_start', {
+      send_to: 'G-FN337E83YN',
+      method: 'google',
+    })
+    expect(window.gtag).toHaveBeenNthCalledWith(2, 'event', 'sign_up_start', {
+      send_to: 'G-FN337E83YN',
+      method: 'github',
+    })
+    expect(window.gtag).toHaveBeenNthCalledWith(3, 'event', 'login', {
+      send_to: 'G-FN337E83YN',
+      method: 'google',
+    })
+    expect(window.gtag).toHaveBeenNthCalledWith(4, 'event', 'sign_up', {
+      send_to: 'G-FN337E83YN',
+      method: 'github',
+    })
   })
 })

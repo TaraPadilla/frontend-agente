@@ -7,6 +7,10 @@ import { Sidebar, type AppView } from './components/Sidebar'
 import { TechnicalPanel } from './components/TechnicalPanel'
 import { WorkspaceView } from './components/WorkspaceView'
 import { api, ApiError } from './services/api'
+import {
+  trackAuthenticationEvent,
+  type AuthenticationMethod,
+} from './services/analytics'
 import { getSupabaseClient, startOAuth } from './services/supabase'
 import type {
   Company,
@@ -33,6 +37,29 @@ function createWelcomeMessage(): ChatMessageData {
 
 type Notice = { tone: 'success' | 'error'; text: string } | null
 type AuthIntent = 'login' | 'register'
+
+const authIntentKey = 'auth-intent'
+const authProviderKey = 'auth-provider'
+
+function getAuthenticationTracking(): {
+  intent: AuthIntent
+  provider: AuthenticationMethod
+} | null {
+  const intent = sessionStorage.getItem(authIntentKey)
+  const provider = sessionStorage.getItem(authProviderKey)
+  if (
+    (intent !== 'login' && intent !== 'register') ||
+    (provider !== 'google' && provider !== 'github')
+  ) {
+    return null
+  }
+  return { intent, provider }
+}
+
+function clearAuthenticationTracking() {
+  sessionStorage.removeItem(authIntentKey)
+  sessionStorage.removeItem(authProviderKey)
+}
 
 function errorMessage(error: unknown) {
   if (error instanceof ApiError) return error.message
@@ -172,7 +199,11 @@ function App() {
             setCompanies([])
             setCatalogError(null)
             setRegistrationRequired(false)
-            sessionStorage.removeItem('auth-intent')
+            const authentication = getAuthenticationTracking()
+            if (authentication) {
+              trackAuthenticationEvent('login', authentication.provider)
+            }
+            clearAuthenticationTracking()
             setConnected(true)
             if (resolved.platform_role === 'superadmin') {
               try {
@@ -243,6 +274,7 @@ function App() {
     const params = new URLSearchParams(window.location.search)
     const oauthError = params.get('error_description')
     if (!oauthError) return
+    clearAuthenticationTracking()
     setNotice({ tone: 'error', text: oauthError })
     window.history.replaceState({}, '', window.location.pathname)
   }, [])
@@ -253,11 +285,17 @@ function App() {
     return () => window.clearTimeout(timer)
   }, [notice])
 
-  async function authenticate(intent: AuthIntent, provider: 'google' | 'github') {
-    sessionStorage.setItem('auth-intent', intent)
+  async function authenticate(intent: AuthIntent, provider: AuthenticationMethod) {
+    sessionStorage.setItem(authIntentKey, intent)
+    sessionStorage.setItem(authProviderKey, provider)
+    trackAuthenticationEvent(
+      intent === 'login' ? 'login_start' : 'sign_up_start',
+      provider,
+    )
     try {
       await startOAuth(provider)
     } catch (error) {
+      clearAuthenticationTracking()
       setNotice({ tone: 'error', text: errorMessage(error) })
     }
   }
@@ -266,7 +304,7 @@ function App() {
     try {
       const { error } = await supabase.auth.signOut()
       if (error) throw error
-      sessionStorage.removeItem('auth-intent')
+      clearAuthenticationTracking()
       setAuthenticatedError(null)
       setRegistrationRequired(false)
       resetConversation()
@@ -282,7 +320,11 @@ function App() {
         name: registrationName,
         public_access_enabled: registrationPublic,
       })
-      sessionStorage.removeItem('auth-intent')
+      const authentication = getAuthenticationTracking()
+      if (authentication) {
+        trackAuthenticationEvent('sign_up', authentication.provider)
+      }
+      clearAuthenticationTracking()
       setAuthRevision((value) => value + 1)
       setNotice({ tone: 'success', text: 'La empresa fue creada correctamente.' })
     } catch (error) {

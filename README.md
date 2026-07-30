@@ -72,8 +72,9 @@ del despliegue.
 
 ### Funcionamiento
 
-La implementación está en `src/components/GoogleAnalytics.tsx`, se monta desde
-`src/main.tsx` y:
+El componente está en `src/components/GoogleAnalytics.tsx`, la instrumentación
+se centraliza en `src/services/analytics.ts` y se monta desde `src/main.tsx`.
+La integración:
 
 - carga `gtag.js` una sola vez;
 - valida que el identificador tenga formato `G-*`;
@@ -84,9 +85,27 @@ La implementación está en `src/components/GoogleAnalytics.tsx`, se monta desde
 - excluye query string y fragmento de `page_location` para no enviar a GA4
   parámetros del retorno OAuth.
 
-No se envían eventos personalizados de autenticación, consultas, documentos ni
-configuración administrativa. La medición actual se limita a visitas reales a
-la aplicación.
+Además del `page_view`, se miden las siguientes etapas del flujo de
+autenticación:
+
+| Evento | Tipo | Momento |
+| --- | --- | --- |
+| `login_start` | Personalizado | Clic en iniciar sesión, antes de OAuth |
+| `sign_up_start` | Personalizado | Clic en registrar empresa, antes de OAuth |
+| `login` | Recomendado por GA4 | OAuth completado y entorno existente resuelto |
+| `sign_up` | Recomendado por GA4 | Empresa creada correctamente |
+
+Los cuatro eventos incluyen únicamente el parámetro `method`, con valor
+`google` o `github`. La intención y el proveedor se conservan temporalmente en
+`sessionStorage` para relacionar el clic inicial con el retorno OAuth y se
+eliminan al completar, cancelar o cerrar sesión.
+
+No se envían correos, nombres, identificadores de usuario o empresa, errores,
+contenido del chat, documentos ni configuración administrativa.
+
+Si el registro debe contabilizarse como conversión de negocio, marca
+`sign_up` como **key event** en la propiedad de GA4. Recibir el evento no lo
+convierte automáticamente en evento clave.
 
 ### Compilación y despliegue
 
@@ -117,6 +136,8 @@ mejorada de cambios de página basados en el historial del navegador.
    nuevos `page_view`.
 5. Después de un retorno OAuth, confirma que `page_location` no contenga
    parámetros ni fragmentos de autenticación.
+6. Comprueba las secuencias `login_start` → `login` y
+   `sign_up_start` → `sign_up`, junto con el parámetro `method`.
 
 ## Configuración de Supabase
 
