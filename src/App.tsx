@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ChatHeader } from './components/ChatHeader'
 import { ChatPanel } from './components/ChatPanel'
 import type { ChatMessageData } from './components/ChatMessage'
+import { RegistrationView } from './components/RegistrationView'
 import { Sidebar, type AppView } from './components/Sidebar'
 import { TechnicalPanel } from './components/TechnicalPanel'
 import { WorkspaceView } from './components/WorkspaceView'
@@ -75,6 +76,7 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [activeView, setActiveView] = useState<AppView>('chat')
   const [technicalPanelOpen, setTechnicalPanelOpen] = useState(false)
+  const [registrationViewOpen, setRegistrationViewOpen] = useState(false)
   const [companies, setCompanies] = useState<Company[]>([])
   const [company, setCompany] = useState('')
   const [catalogError, setCatalogError] = useState<string | null>(null)
@@ -550,6 +552,10 @@ function App() {
           onCompanyChange={changeCompany}
           onLogout={() => void logout()}
           onNavigate={setActiveView}
+          onOpenRegistration={() => {
+            setRegistrationViewOpen(true)
+            setSidebarOpen(false)
+          }}
           onToggle={() => setSidebarOpen((current) => !current)}
           open={sidebarOpen}
         />
@@ -629,6 +635,13 @@ function App() {
           )}
         </main>
       </div>
+
+      {registrationViewOpen && !environment && (
+        <RegistrationView
+          onAuthenticate={authenticate}
+          onClose={() => setRegistrationViewOpen(false)}
+        />
+      )}
 
       {authenticatedError && (
         <div className="fixed inset-0 z-[85] grid place-items-center bg-[#02060d]/90 p-4">

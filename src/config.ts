@@ -4,6 +4,9 @@ export interface PublicConfig {
   supabasePublishableKey: string
 }
 
+export const PRODUCT_LANDING_URL =
+  'https://tecnologiaydesarrolloweb.com/agente-ia'
+
 let cachedConfig: PublicConfig | null = null
 
 function requiredValue(name: string, value: string | undefined) {

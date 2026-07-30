@@ -163,6 +163,11 @@ describe('flujos principales de App', () => {
         name: 'Crear un agente para mi empresa',
       }),
     )
+    expect(
+      screen.getByRole('heading', {
+        name: 'Convierte la información de tu empresa en respuestas inmediatas',
+      }),
+    ).toBeInTheDocument()
     await user.click(
       screen.getByRole('button', { name: 'Continuar con GitHub' }),
     )
@@ -179,13 +184,56 @@ describe('flujos principales de App', () => {
     )
   })
 
+  it('presenta la propuesta de valor y permite volver al agente público', async () => {
+    render(<App />)
+    const user = userEvent.setup()
+
+    await screen.findByRole('combobox', { name: 'Empresa pública' })
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Crear un agente para mi empresa',
+      }),
+    )
+
+    expect(
+      screen.getByText('Agente empresarial con IA'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('Respuestas con fuentes verificables'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('Implementación acompañada'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/El registro inicial no requiere datos de pago/),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: 'Conocer más sobre el producto' }),
+    ).toHaveAttribute(
+      'href',
+      'https://tecnologiaydesarrolloweb.com/agente-ia',
+    )
+    expect(
+      screen.getByRole('link', { name: 'Conocer más sobre el producto' }),
+    ).not.toHaveAttribute('target')
+
+    await user.click(
+      screen.getByRole('button', { name: 'Volver al agente público' }),
+    )
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('combobox', { name: 'Empresa pública' }),
+    ).toBeInTheDocument()
+  })
+
   it('selecciona default_company y consulta como viewer con company', async () => {
     render(<App />)
     const user = userEvent.setup()
 
     expect(
       await screen.findByRole('combobox', { name: 'Empresa pública' }),
-    ).toHaveValue('alianzaf1')
+    ).toHaveTextContent('Alianza F1')
     await user.type(screen.getByLabelText('Escribe tu pregunta'), 'Pregunta')
     await user.click(screen.getByRole('button', { name: 'Enviar pregunta' }))
 
@@ -223,7 +271,8 @@ describe('flujos principales de App', () => {
       ),
     ).toBeInTheDocument()
 
-    await user.selectOptions(companySelect, 'publica')
+    await user.click(companySelect)
+    await user.click(screen.getByRole('option', { name: 'Empresa Pública' }))
 
     expect(
       await screen.findByText(
@@ -320,7 +369,7 @@ describe('flujos principales de App', () => {
     ).toBeInTheDocument()
     expect(
       await screen.findByRole('combobox', { name: 'Empresa pública' }),
-    ).toHaveValue('alianzaf1')
+    ).toHaveTextContent('Alianza F1')
   })
 
   it('bloquea el chat si el catálogo público no está disponible', async () => {

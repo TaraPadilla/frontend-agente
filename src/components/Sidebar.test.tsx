@@ -27,6 +27,7 @@ function environment(
 function renderSidebar(
   currentEnvironment: UserEnvironment | null,
   onAuthenticate = vi.fn(),
+  onOpenRegistration = vi.fn(),
 ) {
   render(
     <Sidebar
@@ -42,6 +43,7 @@ function renderSidebar(
       onCompanyChange={vi.fn()}
       onLogout={vi.fn()}
       onNavigate={vi.fn()}
+      onOpenRegistration={onOpenRegistration}
       onToggle={vi.fn()}
       open
     />,
@@ -54,9 +56,10 @@ describe('navegación por permisos', () => {
     const authenticate = renderSidebar(null)
     const user = userEvent.setup()
 
-    expect(screen.getByRole('combobox', { name: 'Empresa pública' })).toHaveValue(
-      'alianzaf1',
-    )
+    expect(
+      screen.getByRole('combobox', { name: 'Empresa pública' }),
+    ).toHaveTextContent('Alianza F1')
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
     expect(
       screen.getByRole('button', {
         name: 'Crear un agente para mi empresa',
@@ -87,8 +90,46 @@ describe('navegación por permisos', () => {
     expect(authenticate).toHaveBeenNthCalledWith(2, 'login', 'github')
   })
 
-  it('ofrece registro con Google y GitHub', async () => {
-    const authenticate = renderSidebar(null)
+  it('abre el selector completo y cambia la empresa desde el menú estilizado', async () => {
+    const onCompanyChange = vi.fn()
+    const user = userEvent.setup()
+
+    render(
+      <Sidebar
+        activeView="chat"
+        companies={[
+          { name: 'Alianza F1', knowledge_key: 'alianzaf1' },
+          { name: 'Pública', knowledge_key: 'publica' },
+        ]}
+        company="alianzaf1"
+        environment={null}
+        onAuthenticate={vi.fn()}
+        onClose={vi.fn()}
+        onCompanyChange={onCompanyChange}
+        onLogout={vi.fn()}
+        onNavigate={vi.fn()}
+        onOpenRegistration={vi.fn()}
+        onToggle={vi.fn()}
+        open
+      />,
+    )
+
+    await user.click(
+      screen.getByRole('combobox', { name: 'Empresa pública' }),
+    )
+
+    expect(
+      screen.getByRole('listbox', { name: 'Empresa pública' }),
+    ).toBeInTheDocument()
+    await user.click(screen.getByRole('option', { name: 'Pública' }))
+
+    expect(onCompanyChange).toHaveBeenCalledWith('publica')
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+  })
+
+  it('abre la vista dedicada desde la acción de crear un agente', async () => {
+    const openRegistration = vi.fn()
+    renderSidebar(null, vi.fn(), openRegistration)
     const user = userEvent.setup()
 
     await user.click(
@@ -96,15 +137,11 @@ describe('navegación por permisos', () => {
         name: 'Crear un agente para mi empresa',
       }),
     )
-    await user.click(
-      screen.getByRole('button', { name: 'Continuar con Google' }),
-    )
-    await user.click(
-      screen.getByRole('button', { name: 'Continuar con GitHub' }),
-    )
 
-    expect(authenticate).toHaveBeenNthCalledWith(1, 'register', 'google')
-    expect(authenticate).toHaveBeenNthCalledWith(2, 'register', 'github')
+    expect(openRegistration).toHaveBeenCalledOnce()
+    expect(
+      screen.queryByRole('button', { name: 'Continuar con Google' }),
+    ).not.toBeInTheDocument()
   })
 
   it('fija la empresa y habilita administración para admin', () => {
