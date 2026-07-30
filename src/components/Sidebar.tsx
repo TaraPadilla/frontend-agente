@@ -86,15 +86,14 @@ export function Sidebar({
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="flex items-center gap-3 px-6 pb-7 pt-7">
-          <div className="brand-mark" aria-hidden="true">
-            A
-          </div>
+        <div className="flex items-center gap-3 px-6 pb-6 pt-5">
           <div className="min-w-0 flex-1">
-            <h1 className="truncate text-[17px] font-extrabold tracking-tight text-white">
-              Alianza F1
-            </h1>
-            <p className="mt-1 truncate text-[11px] font-medium text-slate-400">
+            <img
+              alt="Alianza F1"
+              className="h-[68px] w-auto max-w-[128px] object-contain"
+              src="/Logo.png"
+            />
+            <p className="mt-1 text-[11px] font-medium text-slate-400">
               Asistente de Conocimiento
             </p>
           </div>

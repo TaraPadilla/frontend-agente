@@ -88,6 +88,7 @@ export interface IndexStatus {
   visibility: Visibility | null
   fragment_count: number
   last_complete_indexing: string | null
+  sync_pending: boolean
 }
 
 export interface SyncResult {

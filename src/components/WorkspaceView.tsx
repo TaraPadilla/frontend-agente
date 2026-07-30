@@ -6,9 +6,12 @@ import {
   LockKeyhole,
   RefreshCw,
   Save,
+  TriangleAlert,
   Trash2,
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import type { ConfirmationOptions } from '../hooks/useConfirmationDialog'
+import { useConfirmationDialog } from '../hooks/useConfirmationDialog'
 import type {
   DocumentItem,
   CompanySettings,
@@ -18,6 +21,7 @@ import type {
   SyncResult,
   Visibility,
 } from '../types/api'
+import { ConfirmationDialog } from './ConfirmationDialog'
 
 interface WorkspaceViewProps {
   view: 'files' | 'settings'
@@ -65,6 +69,9 @@ interface LibraryProps {
   onUpload: (visibility: Visibility, files: File[]) => Promise<boolean>
   onDelete: (visibility: Visibility, name: string) => Promise<boolean>
   onSync: (visibility: Visibility) => Promise<void>
+  requestConfirmation: (
+    options: ConfirmationOptions,
+  ) => Promise<boolean>
 }
 
 function Library({
@@ -78,13 +85,64 @@ function Library({
   onUpload,
   onDelete,
   onSync,
+  requestConfirmation,
 }: LibraryProps) {
   const [files, setFiles] = useState<File[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
   const isBusy = busyAction !== null
 
+  async function confirmSync() {
+    const confirmed = await requestConfirmation({
+      title: 'Sincronizar biblioteca',
+      description: `Se actualizará la biblioteca ${visibility} y su índice de conocimiento con los documentos disponibles.`,
+      confirmLabel: 'Sincronizar',
+    })
+    if (confirmed) await onSync(visibility)
+  }
+
+  async function confirmDelete(name: string) {
+    const confirmed = await requestConfirmation({
+      title: 'Eliminar documento',
+      description: `Se eliminará “${name}” de la biblioteca ${visibility}. Esta acción no se puede deshacer.`,
+      confirmLabel: 'Eliminar documento',
+      tone: 'danger',
+    })
+    if (confirmed) await onDelete(visibility, name)
+  }
+
   return (
     <div className="grid min-h-0 gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+      {status?.sync_pending && (
+        <div
+          className="flex flex-col gap-3 rounded-xl border border-amber-300/50 bg-amber-300/15 p-4 text-amber-50 shadow-lg shadow-amber-950/20 sm:flex-row sm:items-center sm:justify-between xl:col-span-2"
+          role="alert"
+        >
+          <div className="flex items-start gap-3">
+            <TriangleAlert className="mt-0.5 size-5 shrink-0 text-amber-300" />
+            <div>
+              <strong className="block text-sm">Sincronización pendiente</strong>
+              <p className="mt-1 text-xs leading-5 text-amber-100/85">
+                La biblioteca {visibility} cambió. Sincronízala para que el
+                agente utilice la versión actual de sus documentos.
+              </p>
+            </div>
+          </div>
+          <button
+            className="secondary-button shrink-0 border-amber-200/40 text-amber-50"
+            disabled={isBusy}
+            onClick={() => void confirmSync()}
+            type="button"
+          >
+            <RefreshCw
+              className={`size-4 ${
+                busyAction === `sync-${visibility}` ? 'animate-spin' : ''
+              }`}
+            />
+            Sincronizar ahora
+          </button>
+        </div>
+      )}
+
       <section className="min-h-0 overflow-hidden rounded-xl border border-slate-700/60 bg-[#0a1727]">
         <header className="flex items-center justify-between border-b border-slate-700/60 px-5 py-4">
           <div>
@@ -98,15 +156,7 @@ function Library({
           <button
             className="header-action"
             disabled={isBusy}
-            onClick={() => {
-              if (
-                window.confirm(
-                  `¿Deseas sincronizar la biblioteca ${visibility}?`,
-                )
-              ) {
-                void onSync(visibility)
-              }
-            }}
+            onClick={() => void confirmSync()}
             type="button"
           >
             <RefreshCw
@@ -148,15 +198,7 @@ function Library({
                     aria-label={`Eliminar ${document.name}`}
                     className="icon-button hover:text-rose-300"
                     disabled={isBusy}
-                    onClick={() => {
-                      if (
-                        window.confirm(
-                          `¿Deseas eliminar ${document.name}? Esta acción no se puede deshacer.`,
-                        )
-                      ) {
-                        void onDelete(visibility, document.name)
-                      }
-                    }}
+                    onClick={() => void confirmDelete(document.name)}
                     type="button"
                   >
                     <Trash2 className="size-4" />
@@ -262,6 +304,7 @@ function SettingsWorkspace({
   onSaveModel,
   onSaveEmbeddings,
   onTestModel,
+  requestConfirmation,
 }: Pick<
   WorkspaceViewProps,
   | 'company'
@@ -274,7 +317,11 @@ function SettingsWorkspace({
   | 'onSaveModel'
   | 'onSaveEmbeddings'
   | 'onTestModel'
->) {
+> & {
+  requestConfirmation: (
+    options: ConfirmationOptions,
+  ) => Promise<boolean>
+}) {
   const [llmModel, setLlmModel] = useState('')
   const [embeddingModel, setEmbeddingModel] = useState('')
   const [embeddingDimensions, setEmbeddingDimensions] = useState(0)
@@ -386,18 +433,23 @@ function SettingsWorkspace({
               embeddingDimensions < 1 ||
               busyAction !== null
             }
-            onClick={() => {
-              if (
-                window.confirm(
-                  'Cambiar embeddings marcará todas las empresas para reindexación. ¿Deseas continuar?',
-                )
-              ) {
-                void onSaveEmbeddings(
-                  embeddingModel.trim(),
-                  embeddingDimensions,
-                )
-              }
-            }}
+            onClick={() =>
+              void (async () => {
+                const confirmed = await requestConfirmation({
+                  title: 'Actualizar embeddings',
+                  description:
+                    'Cambiar el modelo o sus dimensiones marcará todas las empresas para reindexación.',
+                  confirmLabel: 'Actualizar embeddings',
+                  tone: 'warning',
+                })
+                if (confirmed) {
+                  await onSaveEmbeddings(
+                    embeddingModel.trim(),
+                    embeddingDimensions,
+                  )
+                }
+              })()
+            }
             type="button"
           >
             {busyAction === 'save-embeddings'
@@ -444,6 +496,7 @@ function SettingsWorkspace({
 
 export function WorkspaceView(props: WorkspaceViewProps) {
   const [visibility, setVisibility] = useState<Visibility>('Public')
+  const confirmation = useConfirmationDialog()
 
   return (
     <section className="flex min-h-0 flex-1 flex-col p-4 pt-20 sm:p-6 lg:pt-6">
@@ -491,13 +544,25 @@ export function WorkspaceView(props: WorkspaceViewProps) {
           onDelete={props.onDelete}
           onSync={props.onSync}
           onUpload={props.onUpload}
+          requestConfirmation={confirmation.requestConfirmation}
           reindexPending={props.companySettings.reindex_pending}
           status={props.indexStatus[visibility]}
           syncResults={props.syncResults[visibility]}
           visibility={visibility}
         />
       ) : (
-        <SettingsWorkspace {...props} />
+        <SettingsWorkspace
+          {...props}
+          requestConfirmation={confirmation.requestConfirmation}
+        />
+      )}
+
+      {confirmation.options && (
+        <ConfirmationDialog
+          {...confirmation.options}
+          onCancel={confirmation.cancelConfirmation}
+          onConfirm={confirmation.confirm}
+        />
       )}
     </section>
   )

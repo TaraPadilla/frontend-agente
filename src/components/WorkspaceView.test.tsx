@@ -1,5 +1,6 @@
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Visibility } from '../types/api'
 import { WorkspaceView } from './WorkspaceView'
 
@@ -35,6 +36,10 @@ const baseProps = {
 }
 
 describe('área administrativa', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
   it('muestra únicamente configuración empresarial a admin', () => {
     render(
       <WorkspaceView
@@ -90,6 +95,7 @@ describe('área administrativa', () => {
             visibility: 'Public',
             fragment_count: 12,
             last_complete_indexing: null,
+            sync_pending: true,
           },
           Private: null,
         }}
@@ -116,5 +122,102 @@ describe('área administrativa', () => {
     expect(screen.getByText('manual.pdf')).toBeInTheDocument()
     expect(screen.getByText('12')).toBeInTheDocument()
     expect(screen.getByText(/3 nuevos, 1 actualizados/i)).toBeInTheDocument()
+    expect(screen.getByText('Sincronización pendiente')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Sincronizar ahora' }),
+    ).toBeInTheDocument()
+  })
+
+  it('confirma la eliminación de documentos con un diálogo propio', async () => {
+    const user = userEvent.setup()
+    render(
+      <WorkspaceView
+        {...baseProps}
+        documents={{
+          Public: [
+            {
+              name: 'manual.pdf',
+              relative_path: 'Public/manual.pdf',
+              visibility: 'Public',
+              size_bytes: 2048,
+            },
+          ],
+          Private: [],
+        }}
+        superadmin={false}
+        view="files"
+      />,
+    )
+
+    await user.click(
+      screen.getByRole('button', { name: 'Eliminar manual.pdf' }),
+    )
+
+    expect(
+      screen.getByRole('dialog', { name: 'Eliminar documento' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/esta acción no se puede deshacer/i)).toBeInTheDocument()
+    expect(baseProps.onDelete).not.toHaveBeenCalled()
+
+    await user.click(
+      screen.getByRole('button', { name: 'Eliminar documento' }),
+    )
+
+    expect(baseProps.onDelete).toHaveBeenCalledWith('Public', 'manual.pdf')
+  })
+
+  it('permite cancelar la sincronización desde el diálogo', async () => {
+    const user = userEvent.setup()
+    render(
+      <WorkspaceView
+        {...baseProps}
+        superadmin={false}
+        view="files"
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Sincronizar' }))
+    expect(
+      screen.getByRole('dialog', { name: 'Sincronizar biblioteca' }),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Cancelar' }))
+
+    expect(
+      screen.queryByRole('dialog', { name: 'Sincronizar biblioteca' }),
+    ).not.toBeInTheDocument()
+    expect(baseProps.onSync).not.toHaveBeenCalled()
+  })
+
+  it('advierte antes de actualizar la configuración de embeddings', async () => {
+    const user = userEvent.setup()
+    render(
+      <WorkspaceView
+        {...baseProps}
+        superadmin
+        view="settings"
+      />,
+    )
+
+    await user.click(
+      screen.getByRole('button', { name: 'Actualizar embeddings' }),
+    )
+
+    const dialog = screen.getByRole('dialog', {
+      name: 'Actualizar embeddings',
+    })
+    expect(dialog).toBeInTheDocument()
+    expect(baseProps.onSaveEmbeddings).not.toHaveBeenCalled()
+
+    await user.click(
+      within(dialog).getByRole('button', {
+        name: 'Actualizar embeddings',
+      }),
+    )
+
+    expect(baseProps.onSaveEmbeddings).toHaveBeenCalledWith(
+      'embedding-model',
+      768,
+    )
   })
 })

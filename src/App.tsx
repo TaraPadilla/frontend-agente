@@ -3,10 +3,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ChatHeader } from './components/ChatHeader'
 import { ChatPanel } from './components/ChatPanel'
 import type { ChatMessageData } from './components/ChatMessage'
+import { ConfirmationDialog } from './components/ConfirmationDialog'
 import { RegistrationView } from './components/RegistrationView'
 import { Sidebar, type AppView } from './components/Sidebar'
 import { TechnicalPanel } from './components/TechnicalPanel'
 import { WorkspaceView } from './components/WorkspaceView'
+import { useConfirmationDialog } from './hooks/useConfirmationDialog'
 import { api, ApiError } from './services/api'
 import {
   trackAuthenticationEvent,
@@ -140,6 +142,7 @@ function App() {
   const [sources, setSources] = useState<Source[]>([])
   const [lastQuery, setLastQuery] = useState<QueryResponse | null>(null)
   const supabase = useMemo(() => getSupabaseClient(), [])
+  const confirmation = useConfirmationDialog()
 
   const companyName = useMemo(
     () =>
@@ -475,7 +478,13 @@ function App() {
         if (
           error instanceof ApiError &&
           error.code === 'documento_existente' &&
-          window.confirm('Uno o más archivos ya existen. ¿Deseas reemplazarlos?')
+          (await confirmation.requestConfirmation({
+            title: 'Reemplazar documentos existentes',
+            description:
+              'Uno o más archivos ya existen en esta biblioteca. Si continúas, sus versiones actuales serán reemplazadas.',
+            confirmLabel: 'Reemplazar documentos',
+            tone: 'warning',
+          }))
         ) {
           result = await api.uploadDocuments(visibility, files, true)
         } else {
@@ -778,6 +787,14 @@ function App() {
             </button>
           </form>
         </div>
+      )}
+
+      {confirmation.options && (
+        <ConfirmationDialog
+          {...confirmation.options}
+          onCancel={confirmation.cancelConfirmation}
+          onConfirm={confirmation.confirm}
+        />
       )}
     </div>
   )

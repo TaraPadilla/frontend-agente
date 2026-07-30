@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { UserEnvironment } from './types/api'
@@ -372,6 +372,61 @@ describe('flujos principales de App', () => {
     await waitFor(() =>
       expect(mocks.query).toHaveBeenCalledWith(
         { question: 'Interna', company: undefined, top_k: 5 },
+        true,
+      ),
+    )
+  })
+
+  it('solicita confirmación propia antes de reemplazar documentos', async () => {
+    mocks.getSession.mockResolvedValue({
+      data: { session: { access_token: 'token' } },
+    })
+    mocks.documents.mockResolvedValue({ documents: [] })
+    mocks.indexStatus.mockResolvedValue(null)
+    mocks.uploadDocuments
+      .mockRejectedValueOnce(
+        new mocks.MockApiError(
+          'El documento ya existe.',
+          409,
+          'documento_existente',
+        ),
+      )
+      .mockResolvedValueOnce({ saved_count: 1 })
+
+    const { container } = render(<App />)
+    const user = userEvent.setup()
+
+    await screen.findAllByText('Empresa Privada')
+    await user.click(screen.getByRole('button', { name: 'Archivos' }))
+
+    const fileInput = container.querySelector<HTMLInputElement>(
+      'input[type="file"]',
+    )
+    expect(fileInput).not.toBeNull()
+    await user.upload(
+      fileInput as HTMLInputElement,
+      new File(['contenido'], 'manual.pdf', { type: 'application/pdf' }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Guardar' }))
+
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Reemplazar documentos existentes',
+    })
+    expect(mocks.uploadDocuments).toHaveBeenCalledTimes(1)
+
+    await user.click(
+      within(dialog).getByRole('button', {
+        name: 'Reemplazar documentos',
+      }),
+    )
+
+    await waitFor(() =>
+      expect(mocks.uploadDocuments).toHaveBeenNthCalledWith(
+        2,
+        'Public',
+        expect.arrayContaining([
+          expect.objectContaining({ name: 'manual.pdf' }),
+        ]),
         true,
       ),
     )
