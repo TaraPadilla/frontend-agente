@@ -146,10 +146,25 @@ describe('flujos principales de App', () => {
 
     await screen.findByRole('combobox', { name: 'Empresa pública' })
     await user.click(
-      screen.getByRole('button', { name: 'Iniciar sesión con Google' }),
+      screen.getByRole('button', {
+        name: 'Ya tengo una cuenta — Iniciar sesión',
+      }),
     )
     await user.click(
-      screen.getByRole('button', { name: 'Registrar con GitHub' }),
+      screen.getByRole('button', { name: 'Continuar con Google' }),
+    )
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Volver a las opciones de acceso',
+      }),
+    )
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Crear un agente para mi empresa',
+      }),
+    )
+    await user.click(
+      screen.getByRole('button', { name: 'Continuar con GitHub' }),
     )
 
     expect(mocks.trackAuthenticationEvent).toHaveBeenNthCalledWith(
@@ -183,6 +198,38 @@ describe('flujos principales de App', () => {
     expect(await screen.findByText('Respuesta empresarial')).toBeInTheDocument()
     expect(screen.getByText('gemini-flash')).toBeInTheDocument()
     expect(screen.getByText('3')).toBeInTheDocument()
+  })
+
+  it('personaliza el saludo con la empresa seleccionada en el combo', async () => {
+    render(<App />)
+    const user = userEvent.setup()
+
+    const companySelect = await screen.findByRole('combobox', {
+      name: 'Empresa pública',
+    })
+    expect(
+      await screen.findByText(
+        '¡Hola! Soy el agente empresarial de Alianza F1.',
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Respondo preguntas usando información autorizada de la empresa y te muestro las fuentes consultadas.',
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Puedes probarme preguntando por nuestros servicios, tecnologías o proceso de trabajo.',
+      ),
+    ).toBeInTheDocument()
+
+    await user.selectOptions(companySelect, 'publica')
+
+    expect(
+      await screen.findByText(
+        '¡Hola! Soy el agente empresarial de Empresa Pública.',
+      ),
+    ).toBeInTheDocument()
   })
 
   it('restaura sesión, fija empresa y consulta sin company', async () => {

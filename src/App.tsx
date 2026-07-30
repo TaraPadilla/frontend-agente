@@ -25,12 +25,16 @@ import type {
   Visibility,
 } from './types/api'
 
-function createWelcomeMessage(): ChatMessageData {
+function createWelcomeMessage(companyName: string): ChatMessageData {
+  const resolvedCompanyName = companyName || 'la empresa'
+
   return {
     id: 'welcome',
     role: 'assistant',
     content:
-      '¡Hola! Soy el asistente documental de la empresa.\n\n¿En qué puedo ayudarte?',
+      `**¡Hola! Soy el agente empresarial de ${resolvedCompanyName}.**\n\n` +
+      'Respondo preguntas usando información autorizada de la empresa y te muestro las fuentes consultadas.\n\n' +
+      'Puedes probarme preguntando por nuestros servicios, tecnologías o proceso de trabajo.',
     timestamp: new Date().toISOString(),
   }
 }
@@ -102,7 +106,7 @@ function App() {
     Record<Visibility, SyncResult[] | null>
   >({ Public: null, Private: null })
   const [messages, setMessages] = useState<ChatMessageData[]>([
-    createWelcomeMessage(),
+    createWelcomeMessage(''),
   ])
   const [sources, setSources] = useState<Source[]>([])
   const [lastQuery, setLastQuery] = useState<QueryResponse | null>(null)
@@ -117,10 +121,23 @@ function App() {
   )
 
   const resetConversation = useCallback(() => {
-    setMessages([createWelcomeMessage()])
+    setMessages([createWelcomeMessage(companyName)])
     setSources([])
     setLastQuery(null)
-  }, [])
+  }, [companyName])
+
+  useEffect(() => {
+    if (!companyName) return
+
+    const welcomeMessage = createWelcomeMessage(companyName)
+    setMessages((current) =>
+      current.map((message) =>
+        message.id === 'welcome' && message.content !== welcomeMessage.content
+          ? { ...welcomeMessage, timestamp: message.timestamp }
+          : message,
+      ),
+    )
+  }, [companyName])
 
   const refreshLibraries = useCallback(async () => {
     const [publicDocuments, privateDocuments, publicStatus, privateStatus] =

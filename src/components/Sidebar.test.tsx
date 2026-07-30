@@ -50,15 +50,38 @@ function renderSidebar(
 }
 
 describe('navegación por permisos', () => {
-  it('muestra selector público y OAuth Google/GitHub al viewer', async () => {
+  it('muestra solo las dos acciones de acceso antes de elegir un flujo', async () => {
     const authenticate = renderSidebar(null)
     const user = userEvent.setup()
 
     expect(screen.getByRole('combobox', { name: 'Empresa pública' })).toHaveValue(
       'alianzaf1',
     )
-    await user.click(screen.getByRole('button', { name: 'Iniciar sesión con Google' }))
-    await user.click(screen.getByRole('button', { name: 'Iniciar sesión con GitHub' }))
+    expect(
+      screen.getByRole('button', {
+        name: 'Crear un agente para mi empresa',
+      }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', {
+        name: 'Ya tengo una cuenta — Iniciar sesión',
+      }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Continuar con Google' }),
+    ).not.toBeInTheDocument()
+
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Ya tengo una cuenta — Iniciar sesión',
+      }),
+    )
+    await user.click(
+      screen.getByRole('button', { name: 'Continuar con Google' }),
+    )
+    await user.click(
+      screen.getByRole('button', { name: 'Continuar con GitHub' }),
+    )
 
     expect(authenticate).toHaveBeenNthCalledWith(1, 'login', 'google')
     expect(authenticate).toHaveBeenNthCalledWith(2, 'login', 'github')
@@ -68,8 +91,17 @@ describe('navegación por permisos', () => {
     const authenticate = renderSidebar(null)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole('button', { name: 'Registra tu empresa gratis' }))
-    await user.click(screen.getByRole('button', { name: 'Registrar con GitHub' }))
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Crear un agente para mi empresa',
+      }),
+    )
+    await user.click(
+      screen.getByRole('button', { name: 'Continuar con Google' }),
+    )
+    await user.click(
+      screen.getByRole('button', { name: 'Continuar con GitHub' }),
+    )
 
     expect(authenticate).toHaveBeenNthCalledWith(1, 'register', 'google')
     expect(authenticate).toHaveBeenNthCalledWith(2, 'register', 'github')
