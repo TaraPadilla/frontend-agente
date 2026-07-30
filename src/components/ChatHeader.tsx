@@ -1,14 +1,17 @@
 import {
+  ArrowUpRight,
   CircleEllipsis,
   Globe2,
   MessageSquarePlus,
   PanelRightOpen,
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { SOLUTIONS_LANDING_URL } from '../config'
 
 interface ChatHeaderProps {
   company: string
   connected: boolean | null
+  isVisitor: boolean
   onNewConversation: () => void
   onOpenTechnicalPanel: () => void
 }
@@ -16,6 +19,7 @@ interface ChatHeaderProps {
 export function ChatHeader({
   company,
   connected,
+  isVisitor,
   onNewConversation,
   onOpenTechnicalPanel,
 }: ChatHeaderProps) {
@@ -62,6 +66,28 @@ export function ChatHeader({
           <span className="truncate">Asistente Comercial · {status}</span>
         </div>
       </div>
+
+      {isVisitor && (
+        <div className="hidden max-w-[440px] items-center gap-3 border-l border-slate-700/60 pl-4 xl:flex">
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold text-white">
+              Conoce otras soluciones de Alianza F1
+            </p>
+            <p className="mt-0.5 line-clamp-2 text-[9px] leading-3.5 text-slate-400">
+              También desarrollamos software a medida, automatizaciones,
+              integraciones y agentes conectados con tu sitio web o WhatsApp
+              Business.
+            </p>
+          </div>
+          <a
+            className="header-action shrink-0"
+            href={SOLUTIONS_LANDING_URL}
+          >
+            Ver soluciones
+            <ArrowUpRight className="size-3.5" />
+          </a>
+        </div>
+      )}
 
       <button
         className="header-action hidden sm:inline-flex"
@@ -119,6 +145,25 @@ export function ChatHeader({
             >
               Ver detalles técnicos
             </button>
+            {isVisitor && (
+              <a
+                className="block rounded-lg px-3 py-2.5 text-xs text-slate-200 hover:bg-cyan-300/10 hover:text-cyan-200 xl:hidden"
+                href={SOLUTIONS_LANDING_URL}
+                role="menuitem"
+              >
+                <span className="block font-bold">
+                  Conoce otras soluciones de Alianza F1
+                </span>
+                <span className="mt-1 block text-[10px] leading-4 text-slate-400">
+                  Software a medida, automatizaciones, integraciones y agentes
+                  para tu sitio web o WhatsApp Business.
+                </span>
+                <span className="mt-2 flex items-center gap-1 font-bold text-cyan-200">
+                  Ver soluciones
+                  <ArrowUpRight className="size-3.5" />
+                </span>
+              </a>
+            )}
           </div>
         )}
       </div>

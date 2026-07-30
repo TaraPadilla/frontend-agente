@@ -2,6 +2,7 @@ import { render, waitFor } from '@testing-library/react'
 import { StrictMode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { trackAuthenticationEvent } from '../services/analytics'
+import { navigateTo, REGISTRATION_PATH } from '../services/navigation'
 import { GoogleAnalytics } from './GoogleAnalytics'
 
 function analyticsCalls() {
@@ -96,5 +97,37 @@ describe('GoogleAnalytics', () => {
       send_to: 'G-FN337E83YN',
       method: 'github',
     })
+  })
+
+  it('sends a new page view when the internal route changes', async () => {
+    vi.stubEnv('VITE_GA_MEASUREMENT_ID', 'G-FN337E83YN')
+
+    render(<GoogleAnalytics />)
+    await waitFor(() => {
+      expect(
+        analyticsCalls().filter(
+          ([command, event]) => command === 'event' && event === 'page_view',
+        ),
+      ).toHaveLength(1)
+    })
+
+    navigateTo(REGISTRATION_PATH)
+
+    await waitFor(() => {
+      expect(
+        analyticsCalls().filter(
+          ([command, event]) => command === 'event' && event === 'page_view',
+        ),
+      ).toHaveLength(2)
+    })
+    expect(analyticsCalls()).toContainEqual([
+      'event',
+      'page_view',
+      {
+        send_to: 'G-FN337E83YN',
+        page_title: document.title,
+        page_location: `${window.location.origin}/registro`,
+      },
+    ])
   })
 })

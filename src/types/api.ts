@@ -132,6 +132,7 @@ export interface QueryResponse {
   diagnostics: {
     retrieved_fragments: number
     elapsed_seconds: number
+    total_tokens: number
   }
 }
 

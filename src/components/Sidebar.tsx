@@ -145,6 +145,15 @@ export function Sidebar({
             </div>
           ) : (
             <>
+              <div className="mb-3 px-1">
+                <p className="text-xs leading-4 font-bold text-white">
+                  Selecciona la empresa que quieres consultar
+                </p>
+                <p className="mt-1.5 text-[10px] leading-4 text-slate-400">
+                  El agente responderá con la información pública autorizada de
+                  la empresa seleccionada.
+                </p>
+              </div>
               <CompanySelector
                 companies={companies}
                 company={company}

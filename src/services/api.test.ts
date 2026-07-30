@@ -62,7 +62,11 @@ describe('cliente FastAPI', () => {
         model: 'llm',
         answer: { text: 'Respuesta', information_found: true },
         sources: [],
-        diagnostics: { retrieved_fragments: 2, elapsed_seconds: 0.4 },
+        diagnostics: {
+          retrieved_fragments: 2,
+          elapsed_seconds: 0.4,
+          total_tokens: 321,
+        },
       }),
     )
 
@@ -88,7 +92,11 @@ describe('cliente FastAPI', () => {
         model: 'llm',
         answer: { text: 'Respuesta', information_found: true },
         sources: [],
-        diagnostics: { retrieved_fragments: 1, elapsed_seconds: 0.2 },
+        diagnostics: {
+          retrieved_fragments: 1,
+          elapsed_seconds: 0.2,
+          total_tokens: 210,
+        },
       }),
     )
 

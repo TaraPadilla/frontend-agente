@@ -23,6 +23,7 @@ export function TechnicalMetrics({ query }: TechnicalMetricsProps) {
       'Tiempo de respuesta',
       query ? `${query.diagnostics.elapsed_seconds.toFixed(2)} s` : 'No disponible',
     ],
+    ['Tokens totales', metricValue(query?.diagnostics.total_tokens)],
   ]
 
   const grounded = query?.answer.information_found

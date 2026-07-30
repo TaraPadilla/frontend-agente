@@ -7,6 +7,9 @@ export interface PublicConfig {
 export const PRODUCT_LANDING_URL =
   'https://tecnologiaydesarrolloweb.com/agente-ia'
 
+export const SOLUTIONS_LANDING_URL =
+  'https://tecnologiaydesarrolloweb.com/'
+
 let cachedConfig: PublicConfig | null = null
 
 function requiredValue(name: string, value: string | undefined) {

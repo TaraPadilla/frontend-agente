@@ -12,6 +12,13 @@ import {
   trackAuthenticationEvent,
   type AuthenticationMethod,
 } from './services/analytics'
+import {
+  CHAT_PATH,
+  getPublicRoute,
+  navigateTo,
+  REGISTRATION_PATH,
+  subscribeToNavigation,
+} from './services/navigation'
 import { getSupabaseClient, startOAuth } from './services/supabase'
 import type {
   Company,
@@ -42,6 +49,26 @@ function createWelcomeMessage(companyName: string): ChatMessageData {
 
 type Notice = { tone: 'success' | 'error'; text: string } | null
 type AuthIntent = 'login' | 'register'
+
+function NoticeToast({ notice }: { notice: NonNullable<Notice> }) {
+  return (
+    <div
+      aria-live="polite"
+      className={`fixed right-4 top-4 z-[120] flex max-w-md items-start gap-2 rounded-xl border px-4 py-3 text-sm shadow-2xl ${
+        notice.tone === 'success'
+          ? 'border-emerald-300/30 bg-[#102a25] text-emerald-100'
+          : 'border-rose-300/30 bg-[#2b1520] text-rose-100'
+      }`}
+    >
+      {notice.tone === 'success' ? (
+        <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
+      ) : (
+        <XCircle className="mt-0.5 size-4 shrink-0" />
+      )}
+      {notice.text}
+    </div>
+  )
+}
 
 const authIntentKey = 'auth-intent'
 const authProviderKey = 'auth-provider'
@@ -76,7 +103,7 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [activeView, setActiveView] = useState<AppView>('chat')
   const [technicalPanelOpen, setTechnicalPanelOpen] = useState(false)
-  const [registrationViewOpen, setRegistrationViewOpen] = useState(false)
+  const [publicRoute, setPublicRoute] = useState(getPublicRoute)
   const [companies, setCompanies] = useState<Company[]>([])
   const [company, setCompany] = useState('')
   const [catalogError, setCatalogError] = useState<string | null>(null)
@@ -193,6 +220,14 @@ function App() {
     return () => data.subscription.unsubscribe()
   }, [supabase.auth])
 
+  useEffect(
+    () =>
+      subscribeToNavigation(() => {
+        setPublicRoute(getPublicRoute())
+      }),
+    [],
+  )
+
   useEffect(() => {
     let active = true
     async function bootstrap() {
@@ -303,6 +338,12 @@ function App() {
     const timer = window.setTimeout(() => setNotice(null), 6000)
     return () => window.clearTimeout(timer)
   }, [notice])
+
+  useEffect(() => {
+    if (publicRoute === 'registration' && environment) {
+      navigateTo(CHAT_PATH, true)
+    }
+  }, [environment, publicRoute])
 
   async function authenticate(intent: AuthIntent, provider: AuthenticationMethod) {
     sessionStorage.setItem(authIntentKey, intent)
@@ -539,6 +580,24 @@ function App() {
     )
   }
 
+  if (
+    publicRoute === 'registration' &&
+    !environment &&
+    !registrationRequired &&
+    !authenticatedError &&
+    !sessionExpired
+  ) {
+    return (
+      <>
+        <RegistrationView
+          onAuthenticate={authenticate}
+          onClose={() => navigateTo(CHAT_PATH)}
+        />
+        {notice && <NoticeToast notice={notice} />}
+      </>
+    )
+  }
+
   return (
     <div className="min-h-dvh bg-[#020813] p-0 text-slate-100 lg:h-dvh lg:p-3">
       <div className="app-frame mx-auto flex min-h-dvh max-w-[1780px] overflow-hidden border-slate-700/60 bg-[#07111f] lg:h-full lg:min-h-0 lg:rounded-2xl lg:border">
@@ -553,7 +612,7 @@ function App() {
           onLogout={() => void logout()}
           onNavigate={setActiveView}
           onOpenRegistration={() => {
-            setRegistrationViewOpen(true)
+            navigateTo(REGISTRATION_PATH)
             setSidebarOpen(false)
           }}
           onToggle={() => setSidebarOpen((current) => !current)}
@@ -561,29 +620,14 @@ function App() {
         />
 
         <main className="relative flex min-w-0 flex-1 flex-col">
-          {notice && (
-            <div
-              aria-live="polite"
-              className={`fixed right-4 top-4 z-[70] flex max-w-md items-start gap-2 rounded-xl border px-4 py-3 text-sm shadow-2xl ${
-                notice.tone === 'success'
-                  ? 'border-emerald-300/30 bg-[#102a25] text-emerald-100'
-                  : 'border-rose-300/30 bg-[#2b1520] text-rose-100'
-              }`}
-            >
-              {notice.tone === 'success' ? (
-                <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
-              ) : (
-                <XCircle className="mt-0.5 size-4 shrink-0" />
-              )}
-              {notice.text}
-            </div>
-          )}
+          {notice && <NoticeToast notice={notice} />}
 
           {activeView === 'chat' || !environment ? (
             <>
               <ChatHeader
                 company={companyName}
                 connected={connected}
+                isVisitor={!booting && !environment}
                 onNewConversation={resetConversation}
                 onOpenTechnicalPanel={() => setTechnicalPanelOpen(true)}
               />
@@ -604,7 +648,12 @@ function App() {
                   />
                 )}
                 <TechnicalPanel
+                  isVisitor={!booting && !environment}
                   onClose={() => setTechnicalPanelOpen(false)}
+                  onRegister={() => {
+                    navigateTo(REGISTRATION_PATH)
+                    setTechnicalPanelOpen(false)
+                  }}
                   open={technicalPanelOpen}
                   query={lastQuery}
                   sources={sources}
@@ -635,13 +684,6 @@ function App() {
           )}
         </main>
       </div>
-
-      {registrationViewOpen && !environment && (
-        <RegistrationView
-          onAuthenticate={authenticate}
-          onClose={() => setRegistrationViewOpen(false)}
-        />
-      )}
 
       {authenticatedError && (
         <div className="fixed inset-0 z-[85] grid place-items-center bg-[#02060d]/90 p-4">

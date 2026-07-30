@@ -113,11 +113,16 @@ const queryResponse = {
   model: 'gemini-flash',
   answer: { text: 'Respuesta empresarial', information_found: true },
   sources: [],
-  diagnostics: { retrieved_fragments: 3, elapsed_seconds: 0.42 },
+  diagnostics: {
+    retrieved_fragments: 3,
+    elapsed_seconds: 0.42,
+    total_tokens: 321,
+  },
 }
 
 describe('flujos principales de App', () => {
   beforeEach(() => {
+    window.history.replaceState({}, '', '/')
     sessionStorage.clear()
     mocks.getSession.mockResolvedValue({ data: { session: null } })
     mocks.onAuthStateChange.mockReturnValue({
@@ -168,6 +173,7 @@ describe('flujos principales de App', () => {
         name: 'Convierte la información de tu empresa en respuestas inmediatas',
       }),
     ).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/registro')
     await user.click(
       screen.getByRole('button', { name: 'Continuar con GitHub' }),
     )
@@ -216,24 +222,64 @@ describe('flujos principales de App', () => {
     expect(
       screen.getByRole('link', { name: 'Conocer más sobre el producto' }),
     ).not.toHaveAttribute('target')
+    expect(
+      screen.getByRole('link', { name: 'Descubre todo lo que incluye' }),
+    ).toHaveAttribute('href', '#registration-benefits')
 
     await user.click(
       screen.getByRole('button', { name: 'Volver al agente público' }),
     )
 
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(window.location.pathname).toBe('/')
+    expect(
+      screen.queryByRole('heading', {
+        name: 'Convierte la información de tu empresa en respuestas inmediatas',
+      }),
+    ).not.toBeInTheDocument()
     expect(
       screen.getByRole('combobox', { name: 'Empresa pública' }),
     ).toBeInTheDocument()
   })
 
-  it('selecciona default_company y consulta como viewer con company', async () => {
+  it('abre la vista de registro directamente desde su ruta', async () => {
+    window.history.replaceState({}, '', '/registro')
+
+    render(<App />)
+
+    expect(
+      screen.getByRole('heading', {
+        name: 'Convierte la información de tu empresa en respuestas inmediatas',
+      }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByLabelText('Escribe tu pregunta'),
+    ).not.toBeInTheDocument()
+    expect(window.location.pathname).toBe('/registro')
+  })
+
+  it('consulta como visitante y presenta el acceso a su propio agente', async () => {
     render(<App />)
     const user = userEvent.setup()
 
     expect(
       await screen.findByRole('combobox', { name: 'Empresa pública' }),
     ).toHaveTextContent('Alianza F1')
+    expect(
+      screen.getByText('Selecciona la empresa que quieres consultar'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'El agente responderá con la información pública autorizada de la empresa seleccionada.',
+      ),
+    ).toBeInTheDocument()
+    for (const solutionsLink of screen.getAllByRole('link', {
+      name: /Ver soluciones/,
+    })) {
+      expect(solutionsLink).toHaveAttribute(
+        'href',
+        'https://tecnologiaydesarrolloweb.com/',
+      )
+    }
     await user.type(screen.getByLabelText('Escribe tu pregunta'), 'Pregunta')
     await user.click(screen.getByRole('button', { name: 'Enviar pregunta' }))
 
@@ -244,8 +290,27 @@ describe('flujos principales de App', () => {
       ),
     )
     expect(await screen.findByText('Respuesta empresarial')).toBeInTheDocument()
-    expect(screen.getByText('gemini-flash')).toBeInTheDocument()
-    expect(screen.getByText('3')).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', {
+        name: 'Mira los resultados de tu propio agente',
+      }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Respuestas con tus propias fuentes')).toBeInTheDocument()
+    expect(screen.getByText('Métricas de cada respuesta')).toBeInTheDocument()
+    expect(screen.queryByText('Métricas técnicas')).not.toBeInTheDocument()
+
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Ver cómo funcionaría con mi información',
+      }),
+    )
+
+    expect(window.location.pathname).toBe('/registro')
+    expect(
+      screen.getByRole('heading', {
+        name: 'Convierte la información de tu empresa en respuestas inmediatas',
+      }),
+    ).toBeInTheDocument()
   })
 
   it('personaliza el saludo con la empresa seleccionada en el combo', async () => {
@@ -313,6 +378,7 @@ describe('flujos principales de App', () => {
   })
 
   it('muestra registro cuando el usuario autenticado no tiene empresa', async () => {
+    window.history.replaceState({}, '', '/registro')
     sessionStorage.setItem('auth-intent', 'register')
     sessionStorage.setItem('auth-provider', 'github')
     mocks.getSession.mockResolvedValue({
@@ -348,6 +414,7 @@ describe('flujos principales de App', () => {
       'github',
     )
     expect((await screen.findAllByText('Empresa Privada')).length).toBeGreaterThan(0)
+    await waitFor(() => expect(window.location.pathname).toBe('/'))
   })
 
   it('no degrada silenciosamente una sesión expirada', async () => {

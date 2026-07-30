@@ -3,17 +3,33 @@ import {
   initializeGoogleAnalytics,
   sendPageView,
 } from '../services/analytics'
+import { subscribeToNavigation } from '../services/navigation'
 
 export function GoogleAnalytics() {
   useEffect(() => {
-    const measurementId = initializeGoogleAnalytics()
-    if (!measurementId) return
+    const configuredMeasurementId = initializeGoogleAnalytics()
+    if (!configuredMeasurementId) return
+    const measurementId: string = configuredMeasurementId
 
-    const animationFrame = window.requestAnimationFrame(() => {
-      sendPageView(measurementId)
-    })
+    let animationFrame: number | null = null
+    function sendCurrentPageView() {
+      if (animationFrame !== null) {
+        window.cancelAnimationFrame(animationFrame)
+      }
+      animationFrame = window.requestAnimationFrame(() => {
+        sendPageView(measurementId)
+        animationFrame = null
+      })
+    }
 
-    return () => window.cancelAnimationFrame(animationFrame)
+    sendCurrentPageView()
+    const unsubscribe = subscribeToNavigation(sendCurrentPageView)
+    return () => {
+      if (animationFrame !== null) {
+        window.cancelAnimationFrame(animationFrame)
+      }
+      unsubscribe()
+    }
   }, [])
 
   return null

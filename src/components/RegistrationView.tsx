@@ -3,6 +3,7 @@ import {
   Bot,
   Building2,
   CheckCircle2,
+  ChevronDown,
   FileText,
   Globe2,
   MessageCircle,
@@ -71,30 +72,21 @@ export function RegistrationView({
   const registering = authIntent === 'register'
 
   useEffect(() => {
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-
     function closeOnEscape(event: KeyboardEvent) {
       if (event.key === 'Escape') onClose()
     }
 
     document.addEventListener('keydown', closeOnEscape)
     return () => {
-      document.body.style.overflow = previousOverflow
       document.removeEventListener('keydown', closeOnEscape)
     }
   }, [onClose])
 
   return (
-    <div
-      aria-labelledby="registration-title"
-      aria-modal="true"
-      className="fixed inset-0 z-[100] overflow-y-auto bg-[#030a13] text-slate-100"
-      role="dialog"
-    >
+    <div className="relative min-h-dvh bg-[#030a13] text-slate-100">
       <div
         aria-hidden="true"
-        className="pointer-events-none fixed inset-0 overflow-hidden"
+        className="pointer-events-none absolute inset-0 overflow-hidden"
       >
         <div className="absolute -left-40 -top-48 size-[520px] rounded-full bg-cyan-300/8 blur-3xl" />
         <div className="absolute -right-48 top-1/3 size-[520px] rounded-full bg-blue-500/8 blur-3xl" />
@@ -145,13 +137,6 @@ export function RegistrationView({
             autorizado de tu organización. Atiende clientes, facilita consultas
             internas y mantén la información centralizada en un solo lugar.
           </p>
-          <a
-            className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-slate-400 underline decoration-slate-600 underline-offset-4 transition hover:text-cyan-200 hover:decoration-cyan-300/60"
-            href={PRODUCT_LANDING_URL}
-          >
-            Conocer más sobre el producto
-            <span aria-hidden="true">→</span>
-          </a>
 
           <div className="mt-7 flex max-w-3xl items-start gap-3 rounded-2xl border border-cyan-300/25 bg-gradient-to-r from-cyan-300/12 to-blue-500/8 p-4 shadow-[0_16px_50px_rgba(0,0,0,0.18)] sm:p-5">
             <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-xl bg-cyan-300 text-[#04101d]">
@@ -162,6 +147,16 @@ export function RegistrationView({
               el agente con tu propia información.
             </p>
           </div>
+
+          <a
+            className="mt-5 inline-flex min-h-14 items-center gap-3 rounded-2xl border border-cyan-300/25 bg-cyan-300/7 px-4 py-2.5 text-sm font-bold text-cyan-100 shadow-[0_12px_35px_rgba(0,0,0,0.16)] transition hover:border-cyan-300/45 hover:bg-cyan-300/12"
+            href="#registration-benefits"
+          >
+            Descubre todo lo que incluye
+            <span className="grid size-10 animate-bounce place-items-center rounded-xl bg-cyan-300 text-[#04101d] shadow-[0_0_24px_rgba(88,229,234,0.28)] motion-reduce:animate-none">
+              <ChevronDown className="size-6" strokeWidth={2.5} />
+            </span>
+          </a>
         </section>
 
         <aside className="lg:row-span-2">
@@ -231,7 +226,10 @@ export function RegistrationView({
           </div>
         </aside>
 
-        <section aria-labelledby="benefits-title">
+        <section
+          aria-labelledby="benefits-title"
+          id="registration-benefits"
+        >
           <div className="mb-4 flex items-end justify-between gap-4">
             <div>
               <p className="text-[11px] font-bold uppercase tracking-[0.13em] text-cyan-300">
@@ -286,6 +284,19 @@ export function RegistrationView({
               </p>
             </div>
           </article>
+
+          <div className="mt-5 flex flex-col items-start gap-2 border-t border-slate-700/50 pt-5 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs leading-5 text-slate-500">
+              Explora el producto, su funcionamiento y sus casos de uso.
+            </p>
+            <a
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-400 underline decoration-slate-600 underline-offset-4 transition hover:text-cyan-200 hover:decoration-cyan-300/60"
+              href={PRODUCT_LANDING_URL}
+            >
+              Conocer más sobre el producto
+              <span aria-hidden="true">→</span>
+            </a>
+          </div>
         </section>
       </main>
 
