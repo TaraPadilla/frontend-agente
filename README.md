@@ -54,6 +54,70 @@ credenciales OAuth ni claves de proveedores de modelos.
 La aplicación valida estas variables al arrancar y muestra un error de
 configuración cuando falta alguna.
 
+## Google Analytics 4
+
+El agente comparte con la landing el flujo web de GA4
+`G-FN337E83YN`. Esta configuración no pertenece al archivo `.env` local ni al
+archivo `compose.yaml`: se administra como variable del repositorio en GitHub:
+
+```text
+Nombre: VITE_GA_MEASUREMENT_ID
+Valor:  G-FN337E83YN
+```
+
+La variable debe crearse en **Settings → Secrets and variables → Actions →
+Variables** del repositorio `TaraPadilla/frontend-agente`. No es un secreto,
+pero se conserva como variable de repositorio para centralizar la configuración
+del despliegue.
+
+### Funcionamiento
+
+La implementación está en `src/components/GoogleAnalytics.tsx`, se monta desde
+`src/main.tsx` y:
+
+- carga `gtag.js` una sola vez;
+- valida que el identificador tenga formato `G-*`;
+- desactiva el `page_view` automático y envía uno explícito por carga real;
+- evita duplicados provocados por `StrictMode`;
+- no convierte los paneles `chat`, `files` y `settings` en páginas, porque no
+  cambian la URL;
+- excluye query string y fragmento de `page_location` para no enviar a GA4
+  parámetros del retorno OAuth.
+
+No se envían eventos personalizados de autenticación, consultas, documentos ni
+configuración administrativa. La medición actual se limita a visitas reales a
+la aplicación.
+
+### Compilación y despliegue
+
+Los workflows `.github/workflows/ci.yml` y
+`.github/workflows/docker-publish.yml` leen la variable de GitHub. El workflow
+de publicación la entrega al `Dockerfile` como argumento de compilación y Vite
+la incorpora al bundle.
+
+La imagen resultante no consulta variables en tiempo de ejecución. Por tanto:
+
+- cambiar la variable en GitHub requiere construir y desplegar una imagen
+  nueva;
+- agregarla al `.env` del servidor o a `compose.yaml` no modifica una imagen ya
+  compilada;
+- si está ausente o no tiene un formato válido, Analytics no se carga.
+
+Para evitar eventos duplicados, desactiva en el flujo web de GA4 la medición
+mejorada de cambios de página basados en el historial del navegador.
+
+### Verificación posterior al despliegue
+
+1. Abre la aplicación en una ventana privada, sin bloqueadores.
+2. En la pestaña Network de las herramientas del navegador, confirma una carga
+   de `googletagmanager.com/gtag/js?id=G-FN337E83YN`.
+3. Recarga la aplicación y comprueba un único evento `page_view` en GA4
+   Realtime o DebugView.
+4. Cambia entre `chat`, `files` y `settings`; estos cambios no deben generar
+   nuevos `page_view`.
+5. Después de un retorno OAuth, confirma que `page_location` no contenga
+   parámetros ni fragmentos de autenticación.
+
 ## Configuración de Supabase
 
 En el panel del proyecto:
@@ -181,13 +245,16 @@ La suite utiliza Vitest, Testing Library y jsdom.
 
 ## Docker
 
-Las variables `VITE_*` se incorporan durante la compilación:
+Las variables `VITE_*` se incorporan durante la compilación. El siguiente
+ejemplo corresponde únicamente a una compilación manual; el
+despliegue normal obtiene `VITE_GA_MEASUREMENT_ID` desde GitHub Actions.
 
 ```powershell
 docker build `
   --build-arg VITE_API_BASE_URL=https://api.ejemplo.com/api/v1 `
   --build-arg VITE_SUPABASE_URL=https://proyecto.supabase.co `
   --build-arg VITE_SUPABASE_PUBLISHABLE_KEY=clave_publica `
+  --build-arg VITE_GA_MEASUREMENT_ID=G-FN337E83YN `
   -t agente-frontend .
 
 docker run --rm -p 8080:80 agente-frontend

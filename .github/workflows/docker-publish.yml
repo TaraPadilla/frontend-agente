@@ -21,6 +21,7 @@ env:
   VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
   VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
   VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+  VITE_GA_MEASUREMENT_ID: ${{ vars.VITE_GA_MEASUREMENT_ID }}
 
 jobs:
   publish-and-deploy:
@@ -57,6 +58,7 @@ jobs:
             VITE_API_BASE_URL=${{ env.VITE_API_BASE_URL }}
             VITE_SUPABASE_URL=${{ env.VITE_SUPABASE_URL }}
             VITE_SUPABASE_PUBLISHABLE_KEY=${{ env.VITE_SUPABASE_PUBLISHABLE_KEY }}
+            VITE_GA_MEASUREMENT_ID=${{ env.VITE_GA_MEASUREMENT_ID }}
           tags: |
             ${{ env.IMAGE_NAME }}:latest
             ${{ env.IMAGE_NAME }}:sha-${{ github.event.workflow_run.head_sha }}

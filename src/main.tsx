@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
+import { GoogleAnalytics } from './components/GoogleAnalytics'
 import { getPublicConfig } from './config'
 
 const root = createRoot(document.getElementById('root')!)
@@ -10,6 +11,7 @@ try {
   getPublicConfig()
   root.render(
     <StrictMode>
+      <GoogleAnalytics />
       <App />
     </StrictMode>,
   )
